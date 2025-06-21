@@ -1,3 +1,4 @@
+// ===================================
 import {
     Controller,
     Get,
@@ -46,6 +47,10 @@ import {
       description: 'Invalid brand data',
     })
     @ApiResponse({
+      status: HttpStatus.CONFLICT,
+      description: 'Brand with this name already exists',
+    })
+    @ApiResponse({
       status: HttpStatus.FORBIDDEN,
       description: 'Insufficient permissions',
     })
@@ -88,6 +93,33 @@ import {
       };
     }
   
+    @Get('competitors')
+    @ApiOperation({ summary: 'Get all unique competitor names' })
+    @ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Competitors retrieved successfully',
+    })
+    async getAllCompetitors(@CurrentTenant() tenantId: string) {
+      const competitors = await this.brandsService.getAllCompetitors(tenantId);
+      return {
+        competitors,
+        total: competitors.length,
+      };
+    }
+  
+    @Get('competitors/network')
+    @ApiOperation({ summary: 'Get competitor relationship network' })
+    @ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Competitor network retrieved successfully',
+    })
+    async getCompetitorNetwork(@CurrentTenant() tenantId: string) {
+      const network = await this.brandsService.getCompetitorNetwork(tenantId);
+      return {
+        network,
+      };
+    }
+  
     @Get(':id')
     @ApiParam({ name: 'id', description: 'Brand UUID' })
     @ApiOperation({ summary: 'Get brand by ID' })
@@ -121,6 +153,10 @@ import {
     @ApiResponse({
       status: HttpStatus.NOT_FOUND,
       description: 'Brand not found',
+    })
+    @ApiResponse({
+      status: HttpStatus.CONFLICT,
+      description: 'Brand with this name already exists',
     })
     @ApiResponse({
       status: HttpStatus.FORBIDDEN,

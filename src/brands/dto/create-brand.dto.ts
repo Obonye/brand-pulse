@@ -1,24 +1,70 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, IsUrl, IsNotEmpty } from 'class-validator';
+import { IsString, IsOptional, IsUrl, IsNotEmpty, IsArray, IsUUID } from 'class-validator';
 
 export class CreateBrandDto {
-  @ApiProperty({ description: 'Brand name' })
+  @ApiProperty({ 
+    description: 'Brand name',
+    example: 'Grand Palace Hotel'
+  })
   @IsString()
   @IsNotEmpty()
   name: string;
 
-  @ApiProperty({ description: 'Brand description', required: false })
+  @ApiProperty({ 
+    description: 'Brand description', 
+    example: 'Luxury hotel in downtown Gaborone',
+    required: false 
+  })
   @IsString()
   @IsOptional()
   description?: string;
 
-  @ApiProperty({ description: 'Brand website URL', required: false })
+  @ApiProperty({ 
+    description: 'Brand website URL', 
+    example: 'https://grandpalacehotel.com',
+    required: false 
+  })
   @IsUrl()
   @IsOptional()
-  website?: string;
+  website_url?: string;
 
-  @ApiProperty({ description: 'Brand logo URL', required: false })
+  @ApiProperty({ 
+    description: 'Brand logo URL', 
+    example: 'https://example.com/logo.png',
+    required: false 
+  })
   @IsUrl()
   @IsOptional()
-  logoUrl?: string;
+  logo_url?: string;
+
+  @ApiProperty({ 
+    description: 'Keywords for monitoring',
+    example: ['hotel', 'luxury', 'gaborone', 'accommodation'],
+    type: [String],
+    required: false 
+  })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  keywords?: string[];
+
+  @ApiProperty({ 
+    description: 'Competitor brand names to monitor',
+    example: ['Hilton Gaborone', 'Marriott Hotel', 'Sun International'],
+    type: [String],
+    required: false 
+  })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  competitor_brands?: string[];
+
+  @ApiProperty({ 
+    description: 'Geographic location', 
+    example: 'Gaborone, Botswana',
+    required: false 
+  })
+  @IsString()
+  @IsOptional()
+  location?: string;
 }
