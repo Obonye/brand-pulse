@@ -8,6 +8,7 @@ import { BrandsModule } from './brands/brands.module';
 import { ScrapersModule } from './scrapers/scrapers.module';
 import { TenantsModule } from './tenants/tenants.module';
 import { SharedModule } from './shared/shared.module';
+import { ScraperJobsModule } from './modules/scraper-jobs/scraper-jobs.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { SharedModule } from './shared/shared.module';
     ScrapersModule,
     TenantsModule,
     SharedModule,
+    ScraperJobsModule
   ],
   controllers: [AppController],
   providers: [AppService],
