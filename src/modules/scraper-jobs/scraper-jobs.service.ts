@@ -255,7 +255,7 @@ export class ScraperJobsService {
 
       // Generate webhook URL for this run
       const apiBaseUrl = this.configService.get<string>('API_BASE_URL') || 'http://localhost:3000';
-      const webhookUrl = `${apiBaseUrl}/webhooks/apify`;
+      const webhookUrl = `${apiBaseUrl}/api/webhooks/apify`;
 
       // Create a new scraper run first to get the run ID
       const { data: scraperRun, error } = await this.supabaseService.adminClient

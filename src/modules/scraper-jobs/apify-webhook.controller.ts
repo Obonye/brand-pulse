@@ -51,7 +51,8 @@ export class ApifyWebhookController {
             id,
             tenant_id,
             name,
-            brand_id
+            brand_id,
+            source_type
           )
         `)
         .eq('apify_run_id', payload.eventData.actorRunId)
