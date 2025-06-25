@@ -19,10 +19,10 @@ export class MentionsService {
     try {
       this.logger.log(`Processing mentions for scraper run ${scraperRun.id}`);
 
-      // Get Apify run data
-      const apifyRunId = scraperRun.metadata?.apify_run_id;
+      // Get Apify run data - use the actual apify_run_id field from database
+      const apifyRunId = scraperRun.apify_run_id;
       if (!apifyRunId) {
-        throw new Error('No Apify run ID found in scraper run metadata');
+        throw new Error('No Apify run ID found in scraper run record');
       }
 
       // Fetch data from Apify
@@ -56,33 +56,92 @@ export class MentionsService {
     const job = scraperRun.scraper_jobs;
     
     return apifyData.map((item, index) => {
-      // Generate a source_id if not provided
+      // Generate a source_id if not provided - use Instagram comment ID for comments
       const sourceId = item.id || item.reviewId || item.postId || 
-                      this.generateSourceId(item.url || item.title || '', index);
+                      this.generateSourceId(item.url || item.postUrl || item.title || '', index);
 
       return {
         tenant_id: scraperRun.tenant_id,
         brand_id: job.brand_id,
         job_run_id: scraperRun.id,
         source_type: job.source_type,
-        source_url: item.url,
+        source_url: item.postUrl || item.url, // Use postUrl for Instagram comments
         source_id: sourceId,
         title: item.title || item.name,
         content: item.text || item.reviewText || item.content || item.description || '',
-        author: item.author || item.reviewer || item.username,
-        author_url: item.authorUrl || item.profileUrl,
+        author: item.ownerUsername || item.author || item.reviewer || item.username,
+        author_url: item.ownerProfilePicUrl || item.authorUrl || item.profileUrl,
         author_followers: item.followers || item.followerCount,
-        published_at: this.parseDate(item.publishedAt || item.createdAt || item.date) || undefined,
+        published_at: this.parseDate(item.timestamp || item.publishedAt || item.createdAt || item.date) || undefined,
         language: item.language || 'en',
-        metadata: {
-          rating: item.rating || item.stars,
-          likes: item.likes || item.likeCount,
-          shares: item.shares || item.shareCount,
-          replies: item.replies || item.replyCount,
-          platform_data: item,
-        },
+        metadata: this.buildMetadata(item, job.source_type),
       };
     }).filter(mention => mention.content && mention.content.trim().length > 0);
+  }
+
+  /**
+   * Build metadata object based on source type and platform data
+   */
+  private buildMetadata(item: any, sourceType: string): Record<string, any> {
+    const baseMetadata = {
+      rating: item.rating || item.stars,
+      likes: item.likes || item.likeCount,
+      shares: item.shares || item.shareCount,
+      replies: item.replies || item.replyCount,
+      platform_data: item,
+    };
+
+    // Add source-specific metadata
+    switch (sourceType) {
+      case 'instagram_posts':
+        return {
+          ...baseMetadata,
+          // Key Instagram posts fields for analytics
+          hashtags: item.hashtags || [],
+          likes_count: item.likesCount || 0,
+          comments_count: item.commentsCount || 0,
+          video_play_count: item.videoPlayCount || 0,
+          video_view_count: item.videoViewCount || 0,
+          location_name: item.locationName,
+          location_id: item.locationId,
+          product_type: item.productType, // 'clips', 'feed', etc.
+          is_sponsored: item.isSponsored || false,
+          video_duration: item.videoDuration,
+          owner_full_name: item.ownerFullName,
+          owner_id: item.ownerId,
+          short_code: item.shortCode,
+          post_type: item.type, // 'Video', 'Image', etc.
+
+        };
+
+      case 'instagram':
+      case 'instagram_comments':
+        return {
+          ...baseMetadata,
+          // Instagram comments specific fields
+          comment_replies_count: item.repliesCount || 0,
+          comment_likes_count: item.likesCount || 0,
+          owner_username: item.ownerUsername,
+          owner_profile_pic: item.ownerProfilePicUrl,
+          owner_id: item.owner?.id,
+          is_verified: item.owner?.is_verified || false,
+        };
+
+      case 'google_reviews':
+        return {
+          ...baseMetadata,
+          // Google Reviews specific fields
+          review_rating: item.rating || item.stars,
+          review_date: item.publishedAt || item.date,
+          reviewer_name: item.author || item.reviewer,
+          business_name: item.businessName,
+          business_address: item.address,
+          review_response: item.response,
+        };
+
+      default:
+        return baseMetadata;
+    }
   }
 
   /**

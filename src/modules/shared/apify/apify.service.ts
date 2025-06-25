@@ -79,10 +79,12 @@ export class ApifyService {
     google_reviews: 'compass/google-maps-reviews-scraper',
     google_maps: 'drobnikj/google-maps-scraper',
     facebook: 'apify/facebook-posts-scraper',
-    instagram: 'apify/instagram-scraper',
+    instagram: 'apify/instagram-post-scraper', // Better for posts and comments
+    instagram_posts: 'apify/instagram-scraper', // For post-level monitoring with rich metadata
+    instagram_comments: 'apify/instagram-comment-scraper', // Separate actor for comments
     twitter: 'quacker/twitter-scraper',
     tripadvisor: 'maxcopell/tripadvisor-reviews',
-    booking_com: 'drobnikj/booking-scraper',
+    booking_com: 'voyager/booking-reviews-scraper',
     news_sites: 'apify/web-scraper',
     youtube: 'bernardo/youtube-scraper',
   };
@@ -250,6 +252,93 @@ export class ApifyService {
           commentsMode: config.include_comments || 'DISABLED',
         };
 
+      case 'instagram':
+        const instagramInput: any = {
+          resultsLimit: Math.min(config.max_results || 50, MAX_RESULTS_LIMIT),
+          includeComments: true, // Always include comments for brand monitoring
+          maxCommentsPerPost: Math.min(config.max_comments_per_post || 20, 50),
+          includeOwnerProfile: true, // Include profile info
+        };
+        
+        // Handle different search types - map to what the actor expects
+        if (config.hashtags && config.hashtags.length > 0) {
+          // Search by hashtags - most common for brand monitoring
+          instagramInput.hashtag = config.hashtags; // Actor expects hashtag array
+        } else if (config.usernames && config.usernames.length > 0) {
+          // Search by usernames - for competitor monitoring
+          instagramInput.username = config.usernames; // Actor expects username array
+        } else if (config.locations && config.locations.length > 0) {
+          // Search by location IDs - for location-based monitoring
+          instagramInput.location = config.locations; // Actor expects location array
+        } else if (config.search_query) {
+          // Generic search query
+          instagramInput.searchQuery = config.search_query;
+        } else {
+          throw new BadRequestException('Instagram scraper requires either hashtags, usernames, locations, or search_query in config');
+        }
+        
+        // Optional filters
+        if (config.from_date) {
+          instagramInput.fromDate = config.from_date; // ISO date string
+        }
+        if (config.to_date) {
+          instagramInput.toDate = config.to_date; // ISO date string
+        }
+        
+        return instagramInput;
+
+      case 'instagram_comments':
+        const commentsInput: any = {
+          maxComments: Math.min(config.maxComments || 50, 100),
+          maxReplies: Math.min(config.maxReplies || 5, 10),
+          includeReplies: true,
+        };
+        
+        if (config.startUrls && config.startUrls.length > 0) {
+          // Extract just the URLs from startUrls array
+          commentsInput.directUrls = config.startUrls.map((item: any) => 
+            typeof item === 'string' ? item : item.url
+          );
+        } else {
+          throw new BadRequestException('Instagram comments scraper requires startUrls (post URLs) in config');
+        }
+        
+        return commentsInput;
+
+      case 'instagram_posts':
+        const postsInput: any = {
+          addParentData: false,
+          enhanceUserSearchWithFacebookPage: false,
+          isUserReelFeedURL: false,
+          isUserTaggedFeedURL: false,
+          resultsLimit: Math.min(config.max_results || 50, MAX_RESULTS_LIMIT),
+          resultsType: 'posts',
+          searchLimit: Math.min(config.search_limit || 1, 5), // Limit search results
+        };
+
+        // Handle different search types
+        if (config.hashtags && config.hashtags.length > 0) {
+          postsInput.searchType = 'hashtag';
+          postsInput.search = config.hashtags.join(' '); // Join hashtags with space
+        } else if (config.usernames && config.usernames.length > 0) {
+          postsInput.searchType = 'user';
+          postsInput.search = config.usernames.join(' '); // Join usernames with space
+        } else if (config.directUrls && config.directUrls.length > 0) {
+          // Direct URLs for specific profiles/posts
+          postsInput.directUrls = config.directUrls.map((url: any) => 
+            typeof url === 'string' ? url : url.url
+          );
+          delete postsInput.searchType; // Not needed for direct URLs
+          delete postsInput.search;
+        } else if (config.search_query) {
+          postsInput.searchType = 'hashtag'; // Default to hashtag search
+          postsInput.search = config.search_query;
+        } else {
+          throw new BadRequestException('Instagram posts scraper requires either hashtags, usernames, directUrls, or search_query in config');
+        }
+
+        return postsInput;
+
       case 'tripadvisor':
         return {
           locationFullName: config.location || '',
@@ -259,11 +348,28 @@ export class ApifyService {
         };
 
       case 'booking_com':
-        return {
-          search: config.search_query || '',
-          destType: config.destination_type || 'city',
-          maxPages: Math.ceil(Math.min(config.max_results || 50, MAX_RESULTS_LIMIT) / 25),
+        const bookingInput: any = {
+          maxReviewsPerHotel: Math.min(config.maxReviewsPerHotel || 3, 10),
+          reviewScores: config.reviewScores || ['ALL'],
+          sortReviewsBy: config.sortReviewsBy || 'f_relevance',
         };
+        
+        // Handle startUrls format
+        if (config.startUrls && config.startUrls.length > 0) {
+          bookingInput.startUrls = config.startUrls.map((url: any) => ({
+            url: typeof url === 'string' ? url : url.url,
+            method: url.method || 'GET'
+          }));
+        } else if (config.search_query) {
+          // Fallback to search if no startUrls provided
+          bookingInput.search = config.search_query;
+          bookingInput.destType = config.destination_type || 'city';
+          bookingInput.maxPages = Math.ceil(Math.min(config.max_results || 50, MAX_RESULTS_LIMIT) / 25);
+        } else {
+          throw new BadRequestException('Booking.com scraper requires either startUrls or search_query in config');
+        }
+        
+        return bookingInput;
 
       case 'news_sites':
         return {
@@ -294,6 +400,8 @@ export class ApifyService {
       google_maps: 2048,
       facebook: 2048,
       instagram: 1024,
+      instagram_posts: 1024,
+      instagram_comments: 1024,
       twitter: 1024,
       tripadvisor: 1024,
       booking_com: 1024,
@@ -313,6 +421,8 @@ export class ApifyService {
       google_maps: 7200,    // 2 hours
       facebook: 3600,
       instagram: 3600,
+      instagram_posts: 3600,
+      instagram_comments: 3600,
       twitter: 1800,        // 30 minutes
       tripadvisor: 3600,
       booking_com: 3600,

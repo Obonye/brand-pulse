@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { ScraperJobsService } from './scraper-jobs.service';
 import { SupabaseService } from '../shared/supabase/supabase.service';
 import { MentionsService } from '../mentions/mentions.service';
+import { ApifyService } from '../shared/apify/apify.service';
 
 export interface ApifyWebhookPayload {
   eventType: 'ACTOR.RUN.SUCCEEDED' | 'ACTOR.RUN.FAILED' | 'ACTOR.RUN.ABORTED' | 'ACTOR.RUN.TIMED_OUT';
@@ -24,6 +25,7 @@ export class ApifyWebhookController {
     private readonly scraperJobsService: ScraperJobsService,
     private readonly supabaseService: SupabaseService,
     private readonly mentionsService: MentionsService,
+    private readonly apifyService: ApifyService,
   ) {}
 
   @Post()
@@ -131,6 +133,12 @@ export class ApifyWebhookController {
     try {
       this.logger.log(`Processing completed run data for scraper run ${scraperRun.id}`);
 
+      // Check if this is an Instagram posts scraper that needs comment processing
+      if (scraperRun.scraper_jobs.source_type === 'instagram' && !scraperRun.metadata?.is_comments_scraper) {
+        await this.handleInstagramPostsCompleted(scraperRun);
+        return; // Don't process mentions yet, wait for comments scraper
+      }
+
       // Process and store mentions from Apify run
       await this.mentionsService.processApifyRunData(scraperRun);
 
@@ -160,6 +168,112 @@ export class ApifyWebhookController {
             ...scraperRun.metadata,
             data_processing_error: error.message,
             data_processing_failed_at: new Date().toISOString(),
+          },
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', scraperRun.id);
+    }
+  }
+
+  private async handleInstagramPostsCompleted(scraperRun: any): Promise<void> {
+    try {
+      this.logger.log(`Handling Instagram posts completion for run ${scraperRun.id}`);
+
+      // Get the post URLs from the completed Instagram posts scraper
+      const postsData = await this.apifyService.getRunData(scraperRun.apify_run_id);
+      
+      if (!postsData || postsData.length === 0) {
+        this.logger.warn(`No posts data found for Instagram run ${scraperRun.id}`);
+        return;
+      }
+
+      // Extract post URLs
+      const postUrls = postsData
+        .filter(item => item.url || item.postUrl || item.shortCode)
+        .map(item => {
+          // Handle different URL formats from Instagram posts scraper
+          if (item.url) return item.url;
+          if (item.postUrl) return item.postUrl;
+          if (item.shortCode) return `https://www.instagram.com/p/${item.shortCode}/`;
+          return null;
+        })
+        .filter(url => url !== null)
+        .slice(0, 10); // Limit to 10 posts for cost control
+
+      if (postUrls.length === 0) {
+        this.logger.warn(`No valid post URLs found for Instagram run ${scraperRun.id}`);
+        return;
+      }
+
+      this.logger.log(`Found ${postUrls.length} Instagram post URLs, triggering comments scraper`);
+
+      // Create configuration for comments scraper
+      const commentsConfig = {
+        startUrls: postUrls.map(url => ({ url, method: 'GET' })),
+        maxComments: scraperRun.scraper_jobs.config?.max_comments_per_post || 20,
+        maxReplies: 5, // Limit replies per comment
+      };
+
+      // Trigger the Instagram comments scraper
+      const commentsRun = await this.apifyService.startScraperRun(
+        'instagram_comments',
+        commentsConfig,
+        scraperRun.metadata?.webhook_url
+      );
+
+      // Create a new scraper run for the comments scraper
+      const { data: newRun, error } = await this.supabaseService.adminClient
+        .from('scraper_runs')
+        .insert({
+          job_id: scraperRun.job_id,
+          tenant_id: scraperRun.scraper_jobs.tenant_id,
+          status: 'running',
+          apify_run_id: commentsRun.id,
+          started_at: new Date().toISOString(),
+          metadata: {
+            is_comments_scraper: true,
+            parent_posts_run_id: scraperRun.id,
+            parent_apify_run_id: scraperRun.apify_run_id,
+            post_urls: postUrls,
+            triggered_automatically: true,
+            webhook_url: scraperRun.metadata?.webhook_url,
+          },
+        })
+        .select()
+        .single();
+
+      if (error) {
+        throw new Error(`Failed to create comments scraper run: ${error.message}`);
+      }
+
+      // Update the original posts run to indicate comments scraper was triggered
+      await this.supabaseService.adminClient
+        .from('scraper_runs')
+        .update({
+          metadata: {
+            ...scraperRun.metadata,
+            comments_scraper_triggered: true,
+            comments_run_id: newRun.id,
+            comments_apify_run_id: commentsRun.id,
+            post_urls_found: postUrls.length,
+          },
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', scraperRun.id);
+
+      this.logger.log(`Successfully triggered Instagram comments scraper. Comments run ID: ${newRun.id}`);
+
+    } catch (error) {
+      this.logger.error(`Failed to handle Instagram posts completion: ${error.message}`, error.stack);
+      
+      // Update run with error
+      await this.supabaseService.adminClient
+        .from('scraper_runs')
+        .update({
+          metadata: {
+            ...scraperRun.metadata,
+            comments_scraper_error: error.message,
+            comments_scraper_failed_at: new Date().toISOString(),
           },
           updated_at: new Date().toISOString(),
         })

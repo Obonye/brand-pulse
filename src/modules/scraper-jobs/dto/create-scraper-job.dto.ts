@@ -35,7 +35,12 @@ export class CreateScraperJobDto {
       sort: 'newest',
       language: 'en'
     },
-    description: 'Configuration varies by source_type. For google_reviews use: startUrls (Google Maps URLs), placeIds (Google Place IDs), or searchStringsArray with locationQuery'
+    description: `Configuration varies by source_type:
+    - google_reviews: startUrls (Google Maps URLs), placeIds, or searchStringsArray with locationQuery
+    - instagram: usernames (["username1", "username2"]), hashtags (["hashtag1"]), or locations (["location_id"])
+    - booking_com: startUrls with hotel URLs or search_query
+    - facebook: page_urls array
+    - All: max_results to limit results`
   })
   @IsObject()
   config: Record<string, any>;
