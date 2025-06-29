@@ -1,6 +1,7 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { SupabaseService } from '../shared/supabase/supabase.service';
 import { ApifyService, ApifyDatasetItem } from '../shared/apify/apify.service';
+import { SentimentService } from '../sentiment/sentiment.service';
 import { ScrapedMention } from './entities/mention.entity';
 
 @Injectable()
@@ -10,6 +11,7 @@ export class MentionsService {
   constructor(
     private supabaseService: SupabaseService,
     private apifyService: ApifyService,
+    private sentimentService: SentimentService,
   ) {}
 
   /**
@@ -36,12 +38,17 @@ export class MentionsService {
 
       // Transform and insert mentions
       const mentions = this.transformApifyDataToMentions(apifyData, scraperRun);
-      const insertedCount = await this.insertMentions(mentions);
+      const insertedMentions = await this.insertMentions(mentions);
 
-      this.logger.log(`Successfully inserted ${insertedCount} mentions for run ${scraperRun.id}`);
+      this.logger.log(`Successfully inserted ${insertedMentions.length} mentions for run ${scraperRun.id}`);
+
+      // Trigger sentiment analysis for newly inserted mentions
+      if (insertedMentions.length > 0) {
+        this.triggerSentimentAnalysis(insertedMentions, scraperRun.scraper_jobs?.brands?.name);
+      }
 
       // Update scraper run with processing stats
-      await this.updateScraperRunStats(scraperRun.id, apifyData.length, insertedCount);
+      await this.updateScraperRunStats(scraperRun.id, apifyData.length, insertedMentions.length);
 
     } catch (error) {
       this.logger.error(`Failed to process Apify run data: ${error.message}`, error.stack);
@@ -147,8 +154,8 @@ export class MentionsService {
   /**
    * Insert mentions into database with conflict handling
    */
-  private async insertMentions(mentions: Partial<ScrapedMention>[]): Promise<number> {
-    if (mentions.length === 0) return 0;
+  private async insertMentions(mentions: Partial<ScrapedMention>[]): Promise<ScrapedMention[]> {
+    if (mentions.length === 0) return [];
 
     try {
       // Insert with ON CONFLICT handling for duplicates
@@ -158,17 +165,37 @@ export class MentionsService {
           onConflict: 'tenant_id,source_type,source_id',
           ignoreDuplicates: false 
         })
-        .select('id');
+        .select('*');
 
       if (error) {
         this.logger.error(`Failed to insert mentions: ${error.message}`);
         throw new BadRequestException(`Failed to insert mentions: ${error.message}`);
       }
 
-      return data?.length || 0;
+      return data || [];
     } catch (error) {
       this.logger.error(`Database error inserting mentions: ${error.message}`);
       throw error;
+    }
+  }
+
+  /**
+   * Trigger sentiment analysis for newly inserted mentions
+   */
+  private async triggerSentimentAnalysis(mentions: ScrapedMention[], brandName?: string): Promise<void> {
+    try {
+      this.logger.log(`Triggering sentiment analysis for ${mentions.length} mentions`);
+      
+      // Run sentiment analysis asynchronously to avoid blocking the webhook response
+      setImmediate(async () => {
+        try {
+          await this.sentimentService.batchAnalyzeMentions(mentions, brandName);
+        } catch (error) {
+          this.logger.error(`Sentiment analysis failed: ${error.message}`);
+        }
+      });
+    } catch (error) {
+      this.logger.warn(`Failed to trigger sentiment analysis: ${error.message}`);
     }
   }
 

@@ -9,6 +9,7 @@ import { ScrapersModule } from './scrapers/scrapers.module';
 import { TenantsModule } from './tenants/tenants.module';
 import { SharedModule } from './shared/shared.module';
 import { ScraperJobsModule } from './modules/scraper-jobs/scraper-jobs.module';
+import { SentimentModule } from './modules/sentiment/sentiment.module';
 
 @Module({
   imports: [
@@ -30,7 +31,8 @@ import { ScraperJobsModule } from './modules/scraper-jobs/scraper-jobs.module';
     ScrapersModule,
     TenantsModule,
     SharedModule,
-    ScraperJobsModule
+    ScraperJobsModule,
+    SentimentModule
   ],
   controllers: [AppController],
   providers: [AppService],
