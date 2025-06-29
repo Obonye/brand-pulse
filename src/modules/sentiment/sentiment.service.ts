@@ -7,7 +7,7 @@ import { ScrapedMention } from '../mentions/entities/mention.entity';
 @Injectable()
 export class SentimentService {
   private readonly logger = new Logger(SentimentService.name);
-  private readonly AI_MODEL = 'gpt-3.5-turbo';
+  private readonly AI_MODEL = 'gpt-4.1';
   private readonly AI_PROVIDER = 'openai';
   private readonly ANALYSIS_VERSION = '1.0';
 
