@@ -56,8 +56,8 @@ export interface AnalyticsSummary {
   unique_authors: number;
   active_sources: number;
   mention_growth: number;
-  best_performing_source: string;
-  worst_performing_source: string;
+  best_performing_source: string | null;
+  worst_performing_source: string | null;
 }
 
 @Injectable()
@@ -77,14 +77,18 @@ export class AnalyticsService {
     } = {}
   ): Promise<SentimentTrend[]> {
     try {
+      // Default to 30 days if no dates provided
+      const dateFrom = options.dateFrom || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const dateTo = options.dateTo || new Date().toISOString();
+
       const { data, error } = await this.supabaseService.adminClient.rpc(
         'get_sentiment_trends',
         {
           p_tenant_id: tenantId,
           p_brand_id: options.brandId || null,
           p_source_type: options.sourceType || null,
-          p_date_from: options.dateFrom || null,
-          p_date_to: options.dateTo || null,
+          p_date_from: dateFrom,
+          p_date_to: dateTo,
           p_interval: options.interval || 'day',
         }
       );
@@ -111,14 +115,18 @@ export class AnalyticsService {
     } = {}
   ): Promise<MentionVolumeAnalytics[]> {
     try {
+      // Default to 30 days if no dates provided
+      const dateFrom = options.dateFrom || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const dateTo = options.dateTo || new Date().toISOString();
+
       const { data, error } = await this.supabaseService.adminClient.rpc(
         'get_mention_volume_analytics',
         {
           p_tenant_id: tenantId,
           p_brand_id: options.brandId || null,
           p_source_type: options.sourceType || null,
-          p_date_from: options.dateFrom || null,
-          p_date_to: options.dateTo || null,
+          p_date_from: dateFrom,
+          p_date_to: dateTo,
           p_interval: options.interval || 'day',
         }
       );
@@ -143,13 +151,17 @@ export class AnalyticsService {
     } = {}
   ): Promise<SourcePerformance[]> {
     try {
+      // Default to 30 days if no dates provided
+      const dateFrom = options.dateFrom || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const dateTo = options.dateTo || new Date().toISOString();
+
       const { data, error } = await this.supabaseService.adminClient.rpc(
         'get_source_performance',
         {
           p_tenant_id: tenantId,
           p_brand_id: options.brandId || null,
-          p_date_from: options.dateFrom || null,
-          p_date_to: options.dateTo || null,
+          p_date_from: dateFrom,
+          p_date_to: dateTo,
         }
       );
 
@@ -173,13 +185,17 @@ export class AnalyticsService {
     } = {}
   ): Promise<BrandComparison[]> {
     try {
+      // Default to 30 days if no dates provided
+      const dateFrom = options.dateFrom || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const dateTo = options.dateTo || new Date().toISOString();
+
       const { data, error } = await this.supabaseService.adminClient.rpc(
         'get_brand_comparison',
         {
           p_tenant_id: tenantId,
           p_brand_ids: options.brandIds || null,
-          p_date_from: options.dateFrom || null,
-          p_date_to: options.dateTo || null,
+          p_date_from: dateFrom,
+          p_date_to: dateTo,
         }
       );
 
@@ -203,13 +219,17 @@ export class AnalyticsService {
     } = {}
   ): Promise<AnalyticsSummary> {
     try {
+      // Default to 30 days if no dates provided
+      const dateFrom = options.dateFrom || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const dateTo = options.dateTo || new Date().toISOString();
+
       const { data, error } = await this.supabaseService.adminClient.rpc(
         'get_analytics_summary',
         {
           p_tenant_id: tenantId,
           p_brand_id: options.brandId || null,
-          p_date_from: options.dateFrom || null,
-          p_date_to: options.dateTo || null,
+          p_date_from: dateFrom,
+          p_date_to: dateTo,
         }
       );
 
@@ -217,18 +237,35 @@ export class AnalyticsService {
         throw new Error(`Failed to get analytics summary: ${error.message}`);
       }
 
-      return data?.[0] || {
-        total_mentions: 0,
-        total_positive: 0,
-        total_negative: 0,
-        total_neutral: 0,
-        overall_sentiment_score: 0,
-        avg_confidence: 0,
-        unique_authors: 0,
-        active_sources: 0,
-        mention_growth: 0,
-        best_performing_source: null,
-        worst_performing_source: null,
+      if (!data || data.length === 0) {
+        return {
+          total_mentions: 0,
+          total_positive: 0,
+          total_negative: 0,
+          total_neutral: 0,
+          overall_sentiment_score: 0,
+          avg_confidence: 0,
+          unique_authors: 0,
+          active_sources: 0,
+          mention_growth: 0,
+          best_performing_source: null,
+          worst_performing_source: null,
+        };
+      }
+
+      const result = data[0];
+      return {
+        total_mentions: Number(result.total_mentions) || 0,
+        total_positive: Number(result.total_positive) || 0,
+        total_negative: Number(result.total_negative) || 0,
+        total_neutral: Number(result.total_neutral) || 0,
+        overall_sentiment_score: Number(result.overall_sentiment_score) || 0,
+        avg_confidence: Number(result.avg_confidence) || 0,
+        unique_authors: Number(result.unique_authors) || 0,
+        active_sources: Number(result.active_sources) || 0,
+        mention_growth: Number(result.mention_growth) || 0,
+        best_performing_source: result.best_performing_source || null,
+        worst_performing_source: result.worst_performing_source || null,
       };
     } catch (error) {
       this.logger.error(`Error getting analytics summary: ${error.message}`);

@@ -1,13 +1,14 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AnalyticsService } from './analytics.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../auth/guards/tenant.guard';
 import { CurrentTenant } from '../auth/decorators/current-tenant.decorator';
 import { AnalyticsQueryDto, BrandComparisonQueryDto, BasicAnalyticsQueryDto } from './dto/analytics-query.dto';
 
 @ApiTags('analytics')
 @ApiBearerAuth()
-@UseGuards(TenantGuard)
+@UseGuards(JwtAuthGuard, TenantGuard)
 @Controller('analytics')
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
