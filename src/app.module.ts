@@ -14,7 +14,6 @@ import { SharedModule } from './shared/shared.module';
 import { ScraperJobsModule } from './modules/scraper-jobs/scraper-jobs.module';
 import { SentimentModule } from './modules/sentiment/sentiment.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
-import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -51,8 +50,7 @@ import { HealthModule } from './health/health.module';
     SharedModule,
     ScraperJobsModule,
     SentimentModule,
-    AnalyticsModule,
-    HealthModule
+    AnalyticsModule
   ],
   controllers: [AppController],
   providers: [AppService],
