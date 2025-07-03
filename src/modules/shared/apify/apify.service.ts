@@ -495,4 +495,24 @@ export class ApifyService {
       }
     `;
   }
+
+  async healthCheck(): Promise<boolean> {
+    try {
+      // Simple health check by testing the client connection
+      const actors = await this.client.actor('apify/hello-world').start({
+        message: 'Health check'
+      });
+      
+      if (actors && actors.id) {
+        // Abort immediately since we just want to test connection
+        await this.client.run(actors.id).abort();
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      this.logger.error(`Apify health check failed: ${error.message}`);
+      return false;
+    }
+  }
 }

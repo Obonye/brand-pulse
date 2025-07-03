@@ -150,4 +150,23 @@ Text to analyze: "${text}"`;
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
+
+  async healthCheck(): Promise<boolean> {
+    if (!this.openai) {
+      return false;
+    }
+
+    try {
+      const response = await this.openai.chat.completions.create({
+        model: 'gpt-3.5-turbo',
+        messages: [{ role: 'user', content: 'Health check' }],
+        max_tokens: 1,
+      });
+      
+      return response.choices?.length > 0;
+    } catch (error) {
+      this.logger.error(`OpenAI health check failed: ${error.message}`);
+      return false;
+    }
+  }
 }
