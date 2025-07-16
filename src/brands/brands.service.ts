@@ -13,7 +13,7 @@ export class BrandsService {
   async create(createBrandDto: CreateBrandDto, tenantId: string): Promise<Brand> {
     try {
       // Check if brand name already exists for this tenant
-      const { data: existingBrand } = await this.supabaseService.adminClient
+      const { data: existingBrand } = await this.supabaseService.client
         .from('brands')
         .select('id')
         .eq('tenant_id', tenantId)
@@ -31,7 +31,7 @@ export class BrandsService {
           .map(name => name.trim());
       }
 
-      const { data, error } = await this.supabaseService.adminClient
+      const { data, error } = await this.supabaseService.client
         .from('brands')
         .insert({
           tenant_id: tenantId,
@@ -62,7 +62,7 @@ export class BrandsService {
 
   async findAll(tenantId: string): Promise<Brand[]> {
     try {
-      const { data, error } = await this.supabaseService.adminClient
+      const { data, error } = await this.supabaseService.client
         .from('brands')
         .select('*')
         .eq('tenant_id', tenantId)
@@ -81,7 +81,7 @@ export class BrandsService {
 
   async findOne(id: string, tenantId: string): Promise<Brand> {
     try {
-      const { data, error } = await this.supabaseService.adminClient
+      const { data, error } = await this.supabaseService.client
         .from('brands')
         .select('*')
         .eq('id', id)
@@ -109,7 +109,7 @@ export class BrandsService {
 
       // Check if new name conflicts with existing brand (if name is being changed)
       if (updateBrandDto.name && updateBrandDto.name !== existingBrand.name) {
-        const { data: nameConflict } = await this.supabaseService.adminClient
+        const { data: nameConflict } = await this.supabaseService.client
           .from('brands')
           .select('id')
           .eq('tenant_id', tenantId)
@@ -144,7 +144,7 @@ export class BrandsService {
       if (updateBrandDto.competitor_brands !== undefined) updateData.competitor_brands = updateBrandDto.competitor_brands || [];
       if (updateBrandDto.location !== undefined) updateData.location = updateBrandDto.location || null;
 
-      const { data, error } = await this.supabaseService.adminClient
+      const { data, error } = await this.supabaseService.client
         .from('brands')
         .update(updateData)
         .eq('id', id)
@@ -171,7 +171,7 @@ export class BrandsService {
       await this.findOne(id, tenantId);
 
       // Soft delete - set is_active to false
-      const { error } = await this.supabaseService.adminClient
+      const { error } = await this.supabaseService.client
         .from('brands')
         .update({ 
           is_active: false,
@@ -193,7 +193,7 @@ export class BrandsService {
 
   async getBrandStats(tenantId: string) {
     try {
-      const { data: brands, error: brandsError } = await this.supabaseService.adminClient
+      const { data: brands, error: brandsError } = await this.supabaseService.client
         .from('brands')
         .select('id, name, keywords, competitor_brands')
         .eq('tenant_id', tenantId)
@@ -204,7 +204,7 @@ export class BrandsService {
       }
 
       // Get scraper jobs count
-      const { count: scraperJobs, error: jobsError } = await this.supabaseService.adminClient
+      const { count: scraperJobs, error: jobsError } = await this.supabaseService.client
         .from('scraper_jobs')
         .select('*', { count: 'exact', head: true })
         .eq('tenant_id', tenantId)
@@ -218,7 +218,7 @@ export class BrandsService {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-      const { count: recentMentions, error: mentionsError } = await this.supabaseService.adminClient
+      const { count: recentMentions, error: mentionsError } = await this.supabaseService.client
         .from('scraped_mentions')
         .select('*', { count: 'exact', head: true })
         .eq('tenant_id', tenantId)
@@ -251,10 +251,107 @@ export class BrandsService {
     }
   }
 
+  async getSingleBrandStats(brandId: string, tenantId: string) {
+    try {
+      // First verify the brand exists and belongs to the tenant
+      const brand = await this.findOne(brandId, tenantId);
+
+      // Get scraper jobs count for this brand
+      const { count: scraperJobs, error: jobsError } = await this.supabaseService.client
+        .from('scraper_jobs')
+        .select('*', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId)
+        .eq('brand_id', brandId)
+        .eq('is_active', true);
+
+      if (jobsError) {
+        console.warn('Failed to fetch scraper jobs count:', jobsError);
+      }
+
+      // Get recent mentions count (last 30 days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const { count: recentMentions, error: mentionsError } = await this.supabaseService.client
+        .from('scraped_mentions')
+        .select('*', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId)
+        .eq('brand_id', brandId)
+        .gte('scraped_at', thirtyDaysAgo.toISOString());
+
+      if (mentionsError) {
+        console.warn('Failed to fetch mentions count:', mentionsError);
+      }
+
+      // Get total mentions count
+      const { count: totalMentions, error: totalMentionsError } = await this.supabaseService.client
+        .from('scraped_mentions')
+        .select('*', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId)
+        .eq('brand_id', brandId);
+
+      if (totalMentionsError) {
+        console.warn('Failed to fetch total mentions count:', totalMentionsError);
+      }
+
+      // Get sentiment breakdown
+      const { data: sentimentData, error: sentimentError } = await this.supabaseService.client
+        .from('sentiment_analysis')
+        .select('sentiment,scraped_mentions!inner(id)')
+        .eq('scraped_mentions.brand_id', brandId)
+        .not('sentiment', 'is', null);
+
+       
+      if (sentimentError) {
+        console.warn('Failed to fetch sentiment data:', sentimentError);
+      }
+
+      // Calculate sentiment breakdown
+      const sentimentBreakdown = {
+        positive: 0,
+        negative: 0,
+        neutral: 0,
+      };
+
+      sentimentData?.forEach(mention => {
+        const sentiment = mention.sentiment?.toLowerCase();
+        if (sentiment === 'positive') {
+          sentimentBreakdown.positive++;
+        } else if (sentiment === 'negative') {
+          sentimentBreakdown.negative++;
+        } else if (sentiment === 'neutral') {
+          sentimentBreakdown.neutral++;
+        }
+      });
+
+      return {
+        brand_id: brandId,
+        brand_name: brand.name,
+        keywords_count: brand.keywords?.length || 0,
+        keywords: brand.keywords || [],
+        competitor_brands_count: brand.competitor_brands?.length || 0,
+        competitor_brands: brand.competitor_brands || [],
+        active_scraper_jobs: scraperJobs || 0,
+        total_mentions: totalMentions || 0,
+        mentions_last_30_days: recentMentions || 0,
+        sentiment_breakdown: sentimentBreakdown,
+        website_url: brand.website_url,
+        location: brand.location,
+        created_at: brand.created_at,
+        updated_at: brand.updated_at,
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException('Failed to fetch brand statistics');
+    }
+  }
+
   // Get all unique competitor names across all brands
   async getAllCompetitors(tenantId: string): Promise<string[]> {
     try {
-      const { data: brands, error } = await this.supabaseService.adminClient
+      const { data: brands, error } = await this.supabaseService.client
         .from('brands')
         .select('name, competitor_brands')
         .eq('tenant_id', tenantId)
@@ -286,7 +383,7 @@ export class BrandsService {
   // Get competitor relationships for visualization
   async getCompetitorNetwork(tenantId: string) {
     try {
-      const { data: brands, error } = await this.supabaseService.adminClient
+      const { data: brands, error } = await this.supabaseService.client
         .from('brands')
         .select('id, name, competitor_brands')
         .eq('tenant_id', tenantId)

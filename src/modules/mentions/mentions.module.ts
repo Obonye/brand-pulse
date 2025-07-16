@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
+import { MentionsController } from './mentions.controller';
 import { MentionsService } from './mentions.service';
-import { SupabaseModule } from '../shared/supabase/supabase.module';
-import { ApifyModule } from '../shared/apify/apify.module';
+import { SharedModule } from '../../shared/shared.module';
 import { SentimentModule } from '../sentiment/sentiment.module';
 
 @Module({
-  imports: [SupabaseModule, ApifyModule, SentimentModule],
+  imports: [SharedModule, SentimentModule],
+  controllers: [MentionsController],
   providers: [MentionsService],
-  exports: [MentionsService],
+  exports: [MentionsService]
 })
 export class MentionsModule {}

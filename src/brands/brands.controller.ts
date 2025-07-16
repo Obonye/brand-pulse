@@ -120,6 +120,27 @@ import {
       };
     }
   
+    @Get(':id/stats')
+    @ApiParam({ name: 'id', description: 'Brand UUID' })
+    @ApiOperation({ summary: 'Get stats for a specific brand' })
+    @ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Brand stats retrieved successfully',
+    })
+    @ApiResponse({
+      status: HttpStatus.NOT_FOUND,
+      description: 'Brand not found',
+    })
+    async getBrandStats(
+      @Param('id', ParseUUIDPipe) id: string,
+      @CurrentTenant() tenantId: string,
+    ) {
+      const stats = await this.brandsService.getSingleBrandStats(id, tenantId);
+      return {
+        stats,
+      };
+    }
+
     @Get(':id')
     @ApiParam({ name: 'id', description: 'Brand UUID' })
     @ApiOperation({ summary: 'Get brand by ID' })

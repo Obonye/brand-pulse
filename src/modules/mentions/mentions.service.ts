@@ -296,4 +296,121 @@ export class MentionsService {
       throw new BadRequestException('Failed to fetch mentions');
     }
   }
+
+  /**
+   * Get mentions data for table display with joins
+   */
+  async getTableData(
+    tenantId: string,
+    options: {
+      page?: number;
+      limit?: number;
+      brand_id?: string;
+      source_type?: string;
+      sentiment?: 'positive' | 'negative' | 'neutral';
+      search?: string;
+      start_date?: string;
+      end_date?: string;
+    } = {}
+  ): Promise<{ data: any[]; total: number; page: number; limit: number }> {
+    try {
+      const {
+        page = 1,
+        limit = 50,
+        brand_id,
+        source_type,
+        sentiment,
+        search,
+        start_date,
+        end_date,
+      } = options;
+
+      const offset = (page - 1) * limit;
+
+      // Build query with joins
+      let query = this.supabaseService.adminClient
+        .from('scraped_mentions')
+        .select(`
+          id,
+          content,
+          source_type,
+          source_url,
+          author,
+          published_at,
+          scraped_at,
+          brands!inner (
+            id,
+            name
+          ),
+          sentiment_analysis!inner (
+            sentiment,
+            confidence
+          )
+        `, { count: 'exact' })
+        .eq('tenant_id', tenantId);
+
+      // Apply filters
+      if (brand_id) {
+        query = query.eq('brand_id', brand_id);
+      }
+
+      if (source_type) {
+        query = query.eq('source_type', source_type);
+      }
+
+      if (search) {
+        query = query.or(`content.ilike.%${search}%,author.ilike.%${search}%`);
+      }
+
+      if (start_date) {
+        query = query.gte('published_at', start_date);
+      }
+
+      if (end_date) {
+        query = query.lte('published_at', end_date);
+      }
+
+      // Apply sentiment filter if specified
+      if (sentiment) {
+        query = query.not('sentiment_analysis', 'is', null)
+          .eq('sentiment_analysis.sentiment', sentiment);
+      }
+
+      // Add ordering and pagination
+      query = query
+        .order('published_at', { ascending: false, nullsFirst: false })
+        .order('scraped_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      const { data, error, count } = await query;
+
+      if (error) {
+        this.logger.error(`Failed to fetch table data: ${error.message}`);
+        throw new BadRequestException(`Failed to fetch mentions table data: ${error.message}`);
+      }
+
+      // Transform data for table display
+      const tableData = (data || []).map((mention: any) => ({
+        id: mention.id,
+        source: mention.source_type,
+        brand: mention.brands?.name || 'Unknown',
+        content: mention.content,
+        date: mention.published_at || mention.scraped_at,
+        sentiment: mention.sentiment_analysis?.[0]?.sentiment || null,
+        sentiment_score: mention.sentiment_analysis?.[0]?.confidence || null,
+        author: mention.author,
+        source_url: mention.source_url,
+      }));
+
+      return {
+        data: tableData,
+        total: count || 0,
+        page,
+        limit,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to fetch table data: ${error.message}`);
+      throw new BadRequestException('Failed to fetch mentions table data');
+    }
+  }
 }

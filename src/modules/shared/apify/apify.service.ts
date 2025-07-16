@@ -340,12 +340,24 @@ export class ApifyService {
         return postsInput;
 
       case 'tripadvisor':
-        return {
-          locationFullName: config.location || '',
-          maxItems: Math.min(config.max_results || 50, MAX_RESULTS_LIMIT),
-          checkInDate: config.check_in_date,
-          checkOutDate: config.check_out_date,
+        const tripadvisorInput: any = {
+          maxItemsPerQuery: Math.min(config.max_results || 50, MAX_RESULTS_LIMIT),
+          reviewRatings: config.reviewRatings || ["ALL_REVIEW_RATINGS"],
+          reviewsLanguages: config.reviewsLanguages || ["ALL_REVIEW_LANGUAGES"],
+          scrapeReviewerInfo: config.scrapeReviewerInfo !== false, // Default to true
         };
+        
+        // Handle startUrls format for TripAdvisor hotel/attraction URLs
+        if (config.startUrls && config.startUrls.length > 0) {
+          tripadvisorInput.startUrls = config.startUrls.map((url: any) => ({
+            url: typeof url === 'string' ? url : url.url,
+            method: 'GET'
+          }));
+        } else {
+          throw new BadRequestException('TripAdvisor scraper requires startUrls (hotel/attraction URLs) in config');
+        }
+        
+        return tripadvisorInput;
 
       case 'booking_com':
         const bookingInput: any = {
