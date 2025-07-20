@@ -205,4 +205,68 @@ export class AuthService {
     };
     return limits[tier] || limits.basic;
   }
+
+  async logout(user: any) {
+    try {
+      const { error } = await this.supabaseService.client.auth.signOut();
+      
+      if (error) {
+        throw new BadRequestException('Logout failed');
+      }
+
+      return {
+        message: 'Logout successful'
+      };
+    } catch (error) {
+      throw new BadRequestException('Logout failed');
+    }
+  }
+
+  async getSession(user: any) {
+    try {
+      const { data: userData, error } = await this.supabaseService.adminClient
+        .from('users')
+        .select(`
+          id,
+          email,
+          first_name,
+          last_name,
+          role,
+          is_active,
+          created_at,
+          tenants (
+            id,
+            name,
+            slug,
+            subscription_tier,
+            subscription_active
+          )
+        `)
+        .eq('supabase_auth_id', user.id)
+        .eq('is_active', true)
+        .single();
+
+      if (error || !userData) {
+        throw new UnauthorizedException('Session invalid');
+      }
+
+      return {
+        user: {
+          id: userData.id,
+          email: userData.email,
+          firstName: userData.first_name,
+          lastName: userData.last_name,
+          role: userData.role,
+          createdAt: userData.created_at
+        },
+        tenant: userData.tenants,
+        sessionValid: true
+      };
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      throw new UnauthorizedException('Session validation failed');
+    }
+  }
 }

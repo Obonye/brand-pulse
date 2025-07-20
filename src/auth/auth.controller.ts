@@ -1,8 +1,9 @@
-import { Controller, Post, Body, HttpStatus } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Controller, Post, Body, HttpStatus, Get, UseGuards, Request } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto } from '../modules/auth/dto/register.dto';
 import { LoginDto } from '../modules/auth/dto/login.dto';
+import { JwtAuthGuard } from '../modules/auth/guards/jwt-auth.guard';
 
 @ApiTags('Authentication')  // Groups these endpoints in Swagger docs
 @Controller('auth')         // All routes start with /api/auth
@@ -39,5 +40,37 @@ export class AuthController {
   })
   async login(@Body() loginDto: LoginDto) {
     return this.authService.login(loginDto);
+  }
+
+  @Post('logout')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'User logout' })
+  @ApiResponse({ 
+    status: HttpStatus.OK, 
+    description: 'Logout successful' 
+  })
+  @ApiResponse({ 
+    status: HttpStatus.UNAUTHORIZED, 
+    description: 'Invalid token' 
+  })
+  async logout(@Request() req: any) {
+    return this.authService.logout(req.user);
+  }
+
+  @Get('session')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get current session information' })
+  @ApiResponse({ 
+    status: HttpStatus.OK, 
+    description: 'Session information retrieved' 
+  })
+  @ApiResponse({ 
+    status: HttpStatus.UNAUTHORIZED, 
+    description: 'Invalid token' 
+  })
+  async getSession(@Request() req: any) {
+    return this.authService.getSession(req.user);
   }
 }
