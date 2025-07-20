@@ -1,5 +1,6 @@
-import { Controller, Post, Body, HttpStatus, Get, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Body, HttpStatus, Get, UseGuards, Request, Response } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { Response as ExpressResponse } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from '../modules/auth/dto/register.dto';
 import { LoginDto } from '../modules/auth/dto/login.dto';
@@ -38,8 +39,20 @@ export class AuthController {
     status: HttpStatus.UNAUTHORIZED, 
     description: 'Invalid credentials' 
   })
-  async login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
+  async login(@Body() loginDto: LoginDto, @Response() res: ExpressResponse) {
+    const result = await this.authService.login(loginDto);
+    
+    // Set httpOnly cookie with the access token
+    res.cookie('access_token', result.access_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    });
+
+    // Return user data without the token
+    const { access_token, ...userResponse } = result;
+    return res.json(userResponse);
   }
 
   @Post('logout')
@@ -54,8 +67,13 @@ export class AuthController {
     status: HttpStatus.UNAUTHORIZED, 
     description: 'Invalid token' 
   })
-  async logout(@Request() req: any) {
-    return this.authService.logout(req.user);
+  async logout(@Request() req: any, @Response() res: ExpressResponse) {
+    const result = await this.authService.logout(req.user);
+    
+    // Clear the httpOnly cookie
+    res.clearCookie('access_token');
+    
+    return res.json(result);
   }
 
   @Get('session')
