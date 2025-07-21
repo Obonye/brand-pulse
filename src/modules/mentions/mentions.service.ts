@@ -394,6 +394,7 @@ export class MentionsService {
         id: mention.id,
         source: mention.source_type,
         brand: mention.brands?.name || 'Unknown',
+        brand_id: mention.brands?.id || null,
         content: mention.content,
         date: mention.published_at || mention.scraped_at,
         sentiment: mention.sentiment_analysis?.[0]?.sentiment || null,

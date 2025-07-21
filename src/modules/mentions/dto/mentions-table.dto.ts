@@ -5,6 +5,7 @@ export class MentionTableDto {
   id: string;
   source: string;
   brand: string;
+  brand_id: string;
   content: string;
   date: string;
   sentiment: 'positive' | 'negative' | 'neutral' | null;
