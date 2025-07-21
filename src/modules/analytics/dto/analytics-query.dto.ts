@@ -76,3 +76,14 @@ export class BasicAnalyticsQueryDto {
   @IsDateString()
   date_to?: string;
 }
+
+export class ExportAnalyticsQueryDto extends BasicAnalyticsQueryDto {
+  @ApiPropertyOptional({ 
+    description: 'Export format', 
+    enum: ['csv', 'json'],
+    default: 'csv'
+  })
+  @IsOptional()
+  @IsEnum(['csv', 'json'])
+  format?: 'csv' | 'json';
+}

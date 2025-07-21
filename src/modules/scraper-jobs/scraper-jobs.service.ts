@@ -73,9 +73,9 @@ export class ScraperJobsService {
     }
   }
 
-  async findAll(tenantId: string): Promise<ScraperJob[]> {
+  async findAll(tenantId: string, brandId?: string): Promise<ScraperJob[]> {
     try {
-      const { data, error } = await this.supabaseService.adminClient
+      let query = this.supabaseService.adminClient
         .from('scraper_jobs')
         .select(`
           *,
@@ -84,8 +84,13 @@ export class ScraperJobsService {
             name
           )
         `)
-        .eq('tenant_id', tenantId)
-        .order('created_at', { ascending: false });
+        .eq('tenant_id', tenantId);
+
+      if (brandId) {
+        query = query.eq('brand_id', brandId);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) {
         throw new BadRequestException(`Failed to fetch scraper jobs: ${error.message}`);

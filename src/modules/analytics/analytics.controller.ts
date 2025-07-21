@@ -1,10 +1,11 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, Res } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { Response } from 'express';
 import { AnalyticsService } from './analytics.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../auth/guards/tenant.guard';
 import { CurrentTenant } from '../auth/decorators/current-tenant.decorator';
-import { AnalyticsQueryDto, BrandComparisonQueryDto, BasicAnalyticsQueryDto } from './dto/analytics-query.dto';
+import { AnalyticsQueryDto, BrandComparisonQueryDto, BasicAnalyticsQueryDto, ExportAnalyticsQueryDto } from './dto/analytics-query.dto';
 
 @ApiTags('analytics')
 @ApiBearerAuth()
@@ -177,5 +178,38 @@ export class AnalyticsController {
       trending_score: item.trending_score,
       growth_direction: item.trending_score > 0 ? 'up' : item.trending_score < 0 ? 'down' : 'stable'
     }));
+  }
+
+  @Get('export')
+  @ApiOperation({ summary: 'Export analytics data' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Returns analytics data in specified format'
+  })
+  async exportAnalytics(
+    @CurrentTenant() tenantId: string,
+    @Query() query: ExportAnalyticsQueryDto,
+    @Res() res: Response,
+  ) {
+    const format = query.format || 'csv';
+    const exportData = await this.analyticsService.exportAnalytics(tenantId, {
+      brandId: query.brand_id,
+      dateFrom: query.date_from,
+      dateTo: query.date_to,
+      format,
+    });
+
+    const timestamp = new Date().toISOString().split('T')[0];
+    const filename = `analytics-${timestamp}.${format}`;
+
+    if (format === 'csv') {
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(exportData);
+    } else {
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.json(exportData);
+    }
   }
 }

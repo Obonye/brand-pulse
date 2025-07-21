@@ -321,4 +321,115 @@ export class AnalyticsService {
       throw error;
     }
   }
+
+  async exportAnalytics(
+    tenantId: string,
+    options: {
+      brandId?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      format: 'csv' | 'json';
+    }
+  ): Promise<string | object> {
+    try {
+      // Get comprehensive analytics data
+      const [summary, sentimentTrends, volumeAnalytics, sourcePerformance] = await Promise.all([
+        this.getAnalyticsSummary(tenantId, {
+          brandId: options.brandId,
+          dateFrom: options.dateFrom,
+          dateTo: options.dateTo,
+        }),
+        this.getSentimentTrends(tenantId, {
+          brandId: options.brandId,
+          dateFrom: options.dateFrom,
+          dateTo: options.dateTo,
+          interval: 'day'
+        }),
+        this.getMentionVolumeAnalytics(tenantId, {
+          brandId: options.brandId,
+          dateFrom: options.dateFrom,
+          dateTo: options.dateTo,
+          interval: 'day'
+        }),
+        this.getSourcePerformance(tenantId, {
+          brandId: options.brandId,
+          dateFrom: options.dateFrom,
+          dateTo: options.dateTo,
+        }),
+      ]);
+
+      const exportData = {
+        summary,
+        sentiment_trends: sentimentTrends,
+        volume_analytics: volumeAnalytics,
+        source_performance: sourcePerformance,
+        export_metadata: {
+          tenant_id: tenantId,
+          brand_id: options.brandId || 'all',
+          date_range: {
+            from: options.dateFrom || 'last_30_days',
+            to: options.dateTo || 'today'
+          },
+          exported_at: new Date().toISOString(),
+        }
+      };
+
+      if (options.format === 'csv') {
+        return this.convertToCSV(exportData);
+      }
+
+      return exportData;
+    } catch (error) {
+      this.logger.error(`Error exporting analytics: ${error.message}`);
+      throw error;
+    }
+  }
+
+  private convertToCSV(data: any): string {
+    const lines: string[] = [];
+    
+    // Add summary section
+    lines.push('ANALYTICS SUMMARY');
+    lines.push('Metric,Value');
+    lines.push(`Total Mentions,${data.summary.total_mentions}`);
+    lines.push(`Positive Mentions,${data.summary.total_positive}`);
+    lines.push(`Negative Mentions,${data.summary.total_negative}`);
+    lines.push(`Neutral Mentions,${data.summary.total_neutral}`);
+    lines.push(`Overall Sentiment Score,${data.summary.overall_sentiment_score}`);
+    lines.push(`Average Confidence,${data.summary.avg_confidence}`);
+    lines.push(`Unique Authors,${data.summary.unique_authors}`);
+    lines.push(`Mention Growth %,${data.summary.mention_growth}`);
+    lines.push('');
+
+    // Add sentiment trends
+    if (data.sentiment_trends?.length > 0) {
+      lines.push('SENTIMENT TRENDS');
+      lines.push('Period,Positive Count,Negative Count,Neutral Count,Total Count,Sentiment Score');
+      data.sentiment_trends.forEach((trend: any) => {
+        lines.push(`${trend.period},${trend.positive_count},${trend.negative_count},${trend.neutral_count},${trend.total_count},${trend.sentiment_score}`);
+      });
+      lines.push('');
+    }
+
+    // Add volume analytics
+    if (data.volume_analytics?.length > 0) {
+      lines.push('VOLUME ANALYTICS');
+      lines.push('Period,Mention Count,Unique Authors,Trending Score');
+      data.volume_analytics.forEach((volume: any) => {
+        lines.push(`${volume.period},${volume.mention_count},${volume.unique_authors},${volume.trending_score}`);
+      });
+      lines.push('');
+    }
+
+    // Add source performance
+    if (data.source_performance?.length > 0) {
+      lines.push('SOURCE PERFORMANCE');
+      lines.push('Source Type,Total Mentions,Positive,Negative,Neutral,Sentiment Score,Avg Confidence');
+      data.source_performance.forEach((source: any) => {
+        lines.push(`${source.source_type},${source.total_mentions},${source.positive_mentions},${source.negative_mentions},${source.neutral_mentions},${source.sentiment_score},${source.avg_sentiment_confidence}`);
+      });
+    }
+
+    return lines.join('\n');
+  }
 }

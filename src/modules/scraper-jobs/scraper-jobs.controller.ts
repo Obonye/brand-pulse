@@ -56,12 +56,16 @@ export class ScraperJobsController {
 
   @Get()
   @ApiOperation({ summary: 'Get all scraper jobs' })
+  @ApiQuery({ name: 'brand_id', required: false, description: 'Filter by brand ID' })
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Scraper jobs retrieved successfully',
   })
-  async findAll(@CurrentTenant() tenantId: string) {
-    const jobs = await this.scraperJobsService.findAll(tenantId);
+  async findAll(
+    @CurrentTenant() tenantId: string,
+    @Query('brand_id') brandId?: string,
+  ) {
+    const jobs = await this.scraperJobsService.findAll(tenantId, brandId);
     return {
       jobs,
       total: jobs.length,

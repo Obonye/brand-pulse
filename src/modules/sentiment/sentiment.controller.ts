@@ -1,12 +1,13 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { SentimentService } from './sentiment.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../auth/guards/tenant.guard';
 import { CurrentTenant } from '../auth/decorators/current-tenant.decorator';
 
 @ApiTags('sentiment')
 @ApiBearerAuth()
-@UseGuards(TenantGuard)
+@UseGuards(JwtAuthGuard, TenantGuard)
 @Controller('sentiment')
 export class SentimentController {
   constructor(private readonly sentimentService: SentimentService) {}
@@ -30,5 +31,18 @@ export class SentimentController {
     @Query('brand_id') brandId?: string,
   ) {
     return this.sentimentService.getSentimentStats(tenantId, brandId);
+  }
+
+  @Get('trends')
+  @ApiOperation({ summary: 'Get sentiment trends over time' })
+  @ApiResponse({ status: 200, description: 'Returns sentiment trends data' })
+  async getSentimentTrends(
+    @CurrentTenant() tenantId: string,
+    @Query('brand_id') brandId?: string,
+    @Query('interval') interval: 'day' | 'week' | 'month' = 'day',
+    @Query('date_from') dateFrom?: string,
+    @Query('date_to') dateTo?: string,
+  ) {
+    return this.sentimentService.getSentimentTrends(tenantId, brandId, interval, dateFrom, dateTo);
   }
 }

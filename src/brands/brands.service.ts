@@ -13,7 +13,7 @@ export class BrandsService {
   async create(createBrandDto: CreateBrandDto, tenantId: string): Promise<Brand> {
     try {
       // Check if brand name already exists for this tenant
-      const { data: existingBrand } = await this.supabaseService.client
+      const { data: existingBrand } = await this.supabaseService.adminClient
         .from('brands')
         .select('id')
         .eq('tenant_id', tenantId)
@@ -31,7 +31,7 @@ export class BrandsService {
           .map(name => name.trim());
       }
 
-      const { data, error } = await this.supabaseService.client
+      const { data, error } = await this.supabaseService.adminClient
         .from('brands')
         .insert({
           tenant_id: tenantId,
@@ -62,7 +62,7 @@ export class BrandsService {
 
   async findAll(tenantId: string): Promise<Brand[]> {
     try {
-      const { data, error } = await this.supabaseService.client
+      const { data, error } = await this.supabaseService.adminClient
         .from('brands')
         .select('*')
         .eq('tenant_id', tenantId)
@@ -81,7 +81,7 @@ export class BrandsService {
 
   async findOne(id: string, tenantId: string): Promise<Brand> {
     try {
-      const { data, error } = await this.supabaseService.client
+      const { data, error } = await this.supabaseService.adminClient
         .from('brands')
         .select('*')
         .eq('id', id)
@@ -144,7 +144,7 @@ export class BrandsService {
       if (updateBrandDto.competitor_brands !== undefined) updateData.competitor_brands = updateBrandDto.competitor_brands || [];
       if (updateBrandDto.location !== undefined) updateData.location = updateBrandDto.location || null;
 
-      const { data, error } = await this.supabaseService.client
+      const { data, error } = await this.supabaseService.adminClient
         .from('brands')
         .update(updateData)
         .eq('id', id)
@@ -171,7 +171,7 @@ export class BrandsService {
       await this.findOne(id, tenantId);
 
       // Soft delete - set is_active to false
-      const { error } = await this.supabaseService.client
+      const { error } = await this.supabaseService.adminClient
         .from('brands')
         .update({ 
           is_active: false,

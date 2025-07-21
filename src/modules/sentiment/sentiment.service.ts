@@ -213,4 +213,49 @@ export class SentimentService {
       average_confidence: stats.total > 0 ? stats.total_confidence / stats.total : 0,
     };
   }
+
+  private convertDate(ddmmyyyy: string): string | null {
+    if (!ddmmyyyy) return null;
+    const [day, month, year] = ddmmyyyy.split('/');
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+
+  async getSentimentTrends(
+    tenantId: string, 
+    brandId?: string, 
+    interval: 'day' | 'week' | 'month' = 'day',
+    dateFrom?: string,
+    dateTo?: string
+  ): Promise<any[]> {
+    try {
+      // Convert dates from DD/MM/YYYY to YYYY-MM-DD format
+      const convertedDateFrom = dateFrom 
+        ? this.convertDate(dateFrom) || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      
+      const convertedDateTo = dateTo 
+        ? this.convertDate(dateTo) || new Date().toISOString().split('T')[0]
+        : new Date().toISOString().split('T')[0];
+
+      const { data, error } = await this.supabaseService.adminClient.rpc(
+        'get_sentiment_trends_detailed',
+        {
+          p_tenant_id: tenantId,
+          p_brand_id: brandId || null,
+          p_date_from: convertedDateFrom,
+          p_date_to: convertedDateTo,
+          p_interval: interval,
+        }
+      );
+
+      if (error) {
+        throw new Error(`Failed to get sentiment trends: ${error.message}`);
+      }
+
+      return data || [];
+    } catch (error) {
+      this.logger.error(`Error getting sentiment trends: ${error.message}`);
+      throw error;
+    }
+  }
 }
