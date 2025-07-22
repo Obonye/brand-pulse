@@ -4,6 +4,7 @@ import { ScraperJobsService } from './scraper-jobs.service';
 import { SupabaseService } from '../shared/supabase/supabase.service';
 import { MentionsService } from '../mentions/mentions.service';
 import { ApifyService } from '../shared/apify/apify.service';
+import { ScrapedPostsService } from '../scraped-posts/scraped-posts.service';
 
 export interface ApifyWebhookPayload {
   eventType: 'ACTOR.RUN.SUCCEEDED' | 'ACTOR.RUN.FAILED' | 'ACTOR.RUN.ABORTED' | 'ACTOR.RUN.TIMED_OUT';
@@ -26,6 +27,7 @@ export class ApifyWebhookController {
     private readonly supabaseService: SupabaseService,
     private readonly mentionsService: MentionsService,
     private readonly apifyService: ApifyService,
+    private readonly scrapedPostsService: ScrapedPostsService,
   ) {}
 
   @Post()
@@ -37,7 +39,8 @@ export class ApifyWebhookController {
     @Headers('x-apify-webhook-signature') signature?: string,
   ): Promise<{ status: string; message: string }> {
     try {
-      this.logger.log(`Received Apify webhook: ${payload.eventType} for run ${payload.eventData.actorRunId}`);
+      this.logger.log(`🔥 WEBHOOK RECEIVED: ${payload.eventType} for run ${payload.eventData.actorRunId}`);
+      this.logger.log(`🔥 WEBHOOK PAYLOAD: ${JSON.stringify(payload, null, 2)}`);
 
       // Validate webhook payload
       if (!payload.eventType || !payload.eventData?.actorRunId) {
@@ -187,6 +190,14 @@ export class ApifyWebhookController {
         return;
       }
 
+      // Store scraped posts data first
+      this.logger.log(`Storing ${postsData.length} Instagram posts data`);
+      const storedPosts = await this.scrapedPostsService.processInstagramPostsData(
+        postsData,
+        scraperRun.scraper_jobs.tenant_id,
+        scraperRun.scraper_jobs.brand_id
+      );
+
       // Extract post URLs
       const postUrls = postsData
         .filter(item => item.url || item.postUrl || item.shortCode)
@@ -205,7 +216,7 @@ export class ApifyWebhookController {
         return;
       }
 
-      this.logger.log(`Found ${postUrls.length} Instagram post URLs, triggering comments scraper`);
+      this.logger.log(`Stored ${storedPosts.length} posts, found ${postUrls.length} Instagram post URLs, triggering comments scraper`);
 
       // Create configuration for comments scraper
       const commentsConfig = {
@@ -256,6 +267,8 @@ export class ApifyWebhookController {
             comments_run_id: newRun.id,
             comments_apify_run_id: commentsRun.id,
             post_urls_found: postUrls.length,
+            posts_stored: storedPosts.length,
+            posts_data_processed: true,
           },
           updated_at: new Date().toISOString(),
         })
