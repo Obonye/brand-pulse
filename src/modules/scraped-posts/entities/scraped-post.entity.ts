@@ -2,6 +2,7 @@ export interface ScrapedPost {
   id: string;
   tenant_id: string;
   brand_id: string;
+  brand_name?: string;
   source_type: string;
   source_post_id?: string;
   post_url?: string;

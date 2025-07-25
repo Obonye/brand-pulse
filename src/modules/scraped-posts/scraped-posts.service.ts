@@ -208,7 +208,7 @@ export class ScrapedPostsService {
     try {
       let supabaseQuery = this.supabaseService.adminClient
         .from('scraped_posts')
-        .select('*', { count: 'exact' })
+        .select('*, brands!inner(name)', { count: 'exact' })
         .eq('tenant_id', tenantId);
 
       // Apply filters
@@ -247,8 +247,15 @@ export class ScrapedPostsService {
         return { data: [], total: 0 };
       }
 
+      // Transform data to flatten brands relationship
+      const transformedData = (data || []).map(post => ({
+        ...post,
+        brand_name: post.brands?.name,
+        brands: undefined
+      }));
+
       return { 
-        data: data || [], 
+        data: transformedData, 
         total: count || 0 
       };
     } catch (error) {
