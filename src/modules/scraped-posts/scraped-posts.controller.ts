@@ -45,4 +45,16 @@ export class ScrapedPostsController {
   ) {
     return this.scrapedPostsService.getScrapedPostsStats(tenantId, query);
   }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get a single scraped post by ID' })
+  @ApiResponse({ status: 200, description: 'Scraped post details' })
+  @ApiResponse({ status: 404, description: 'Scraped post not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getScrapedPostById(
+    @Param('id') id: string,
+    @CurrentTenant() tenantId: string,
+  ) {
+    return this.scrapedPostsService.getScrapedPostById(id, tenantId);
+  }
 }

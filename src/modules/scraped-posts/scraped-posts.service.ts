@@ -402,4 +402,34 @@ export class ScrapedPostsService {
       };
     }
   }
+
+  async getScrapedPostById(id: string, tenantId: string): Promise<ScrapedPost | null> {
+    try {
+      const { data, error } = await this.supabaseService.adminClient
+        .from('scraped_posts')
+        .select('*, brands!inner(name)')
+        .eq('id', id)
+        .eq('tenant_id', tenantId)
+        .single();
+
+      if (error) {
+        this.logger.error(`Failed to get scraped post by ID: ${error.message}`);
+        return null;
+      }
+
+      if (!data) {
+        return null;
+      }
+
+      // Transform data to flatten brands relationship
+      return {
+        ...data,
+        brand_name: data.brands?.name,
+        brands: undefined
+      };
+    } catch (error) {
+      this.logger.error(`Error getting scraped post by ID: ${error.message}`);
+      return null;
+    }
+  }
 }
