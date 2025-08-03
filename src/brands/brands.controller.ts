@@ -26,13 +26,21 @@ import {
   import { RolesGuard, Roles } from '../modules/auth/guards/roles.guard';
   import { CurrentTenant } from '../modules/auth/decorators/current-tenant.decorator';
   import { CurrentUser } from '../modules/auth/decorators/current-user.decorator';
+  import { LoggerService } from '../common/logger/logger.service';
   
   @ApiTags('Brands')
   @ApiBearerAuth()
   @Controller('brands')
   @UseGuards(JwtAuthGuard, TenantGuard)
   export class BrandsController {
-    constructor(private readonly brandsService: BrandsService) {}
+    private logger: ReturnType<LoggerService['setContext']>;
+
+    constructor(
+      private readonly brandsService: BrandsService,
+      private readonly loggerService: LoggerService,
+    ) {
+      this.logger = this.loggerService.setContext('BrandsController');
+    }
   
     @Post()
     @UseGuards(RolesGuard)
@@ -59,7 +67,20 @@ import {
       @CurrentTenant() tenantId: string,
       @CurrentUser() user: any,
     ) {
+      this.logger.info('POST /brands - Create brand request', { 
+        tenantId, 
+        userId: user?.id, 
+        brandName: createBrandDto.name 
+      });
+
       const brand = await this.brandsService.create(createBrandDto, tenantId);
+      
+      this.logger.info('POST /brands - Brand created successfully', { 
+        tenantId, 
+        brandId: brand.id, 
+        brandName: brand.name 
+      });
+
       return {
         message: 'Brand created successfully',
         brand,
@@ -73,7 +94,15 @@ import {
       description: 'Brands retrieved successfully',
     })
     async findAll(@CurrentTenant() tenantId: string) {
+      this.logger.debug('GET /brands - Fetch all brands request', { tenantId });
+
       const brands = await this.brandsService.findAll(tenantId);
+      
+      this.logger.debug('GET /brands - Brands fetched successfully', { 
+        tenantId, 
+        count: brands.length 
+      });
+
       return {
         brands,
         total: brands.length,

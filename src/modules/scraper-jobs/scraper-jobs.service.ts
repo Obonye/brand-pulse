@@ -7,24 +7,38 @@ import { BrandsService } from '../../brands/brands.service';
 import { CreateScraperJobDto } from './dto/create-scraper-job.dto';
 import { UpdateScraperJobDto } from './dto/update-scraper-job.dto';
 import { ScraperJob, ScraperRun } from './entities/scraper-job.entity';
-
-import { Logger } from '@nestjs/common';
+import { LoggerService } from '../../common/logger/logger.service';
 
 @Injectable()
 export class ScraperJobsService {
-  private readonly logger = new Logger(ScraperJobsService.name);
+  private logger: ReturnType<LoggerService['setContext']>;
 
   constructor(
     private supabaseService: SupabaseService,
     private apifyService: ApifyService,
     private brandsService: BrandsService,
     private configService: ConfigService,
-  ) {}
+    private loggerService: LoggerService,
+  ) {
+    this.logger = this.loggerService.setContext('ScraperJobsService');
+  }
 
   async create(createScraperJobDto: CreateScraperJobDto, tenantId: string): Promise<ScraperJob> {
+    this.logger.info('Creating new scraper job', { 
+      jobName: createScraperJobDto.name,
+      brandId: createScraperJobDto.brand_id,
+      sourceType: createScraperJobDto.source_type,
+      tenantId,
+      hasSchedule: !!createScraperJobDto.schedule_cron
+    });
+
     try {
       // Verify brand belongs to tenant
       await this.brandsService.findOne(createScraperJobDto.brand_id, tenantId);
+      this.logger.debug('Brand verification successful', { 
+        brandId: createScraperJobDto.brand_id, 
+        tenantId 
+      });
 
       // Check if job already exists for this source type
       const { data: existingJob } = await this.supabaseService.adminClient
@@ -36,6 +50,12 @@ export class ScraperJobsService {
         .single();
 
       if (existingJob) {
+        this.logger.warn('Scraper job creation failed - duplicate job exists', { 
+          sourceType: createScraperJobDto.source_type,
+          brandId: createScraperJobDto.brand_id,
+          existingJobId: existingJob.id,
+          tenantId 
+        });
         throw new BadRequestException(
           `Scraper job for ${createScraperJobDto.source_type} already exists for this brand`
         );
@@ -61,14 +81,33 @@ export class ScraperJobsService {
         .single();
 
       if (error) {
+        this.logger.error('Database error during scraper job creation', { 
+          error: error.message,
+          jobName: createScraperJobDto.name,
+          sourceType: createScraperJobDto.source_type,
+          tenantId 
+        });
         throw new BadRequestException(`Failed to create scraper job: ${error.message}`);
       }
+
+      this.logger.info('Scraper job created successfully', { 
+        jobId: data.id,
+        jobName: data.name,
+        sourceType: data.source_type,
+        brandId: data.brand_id,
+        tenantId 
+      });
 
       return data;
     } catch (error) {
       if (error instanceof BadRequestException || error instanceof NotFoundException) {
         throw error;
       }
+      this.logger.error('Unexpected error during scraper job creation', { 
+        error: error.message,
+        jobName: createScraperJobDto.name,
+        tenantId 
+      });
       throw new BadRequestException('Failed to create scraper job');
     }
   }
@@ -251,12 +290,30 @@ export class ScraperJobsService {
   }
 
   async triggerJob(id: string, tenantId: string): Promise<ScraperRun> {
+    this.logger.info('Triggering scraper job', { 
+      jobId: id, 
+      tenantId 
+    });
+
     try {
       const job = await this.findOne(id, tenantId);
 
       if (!job.is_active) {
+        this.logger.warn('Cannot trigger inactive job', { 
+          jobId: id, 
+          jobName: job.name,
+          isActive: job.is_active,
+          tenantId 
+        });
         throw new ForbiddenException('Cannot trigger inactive job');
       }
+
+      this.logger.debug('Job validation successful, proceeding with trigger', { 
+        jobId: id,
+        jobName: job.name,
+        sourceType: job.source_type,
+        tenantId 
+      });
 
       // Generate webhook URL for this run
       const apiBaseUrl = this.configService.get<string>('API_BASE_URL') || 'http://localhost:3000';
@@ -278,8 +335,21 @@ export class ScraperJobsService {
         .single();
 
       if (error) {
+        this.logger.error('Failed to create scraper run record', { 
+          error: error.message,
+          jobId: id,
+          tenantId 
+        });
         throw new BadRequestException(`Failed to create scraper run: ${error.message}`);
       }
+
+      this.logger.info('Scraper run record created, starting Apify run', { 
+        runId: scraperRun.id,
+        jobId: id,
+        sourceType: job.source_type,
+        webhookUrl,
+        tenantId 
+      });
 
       try {
         // Start the Apify run
@@ -288,6 +358,13 @@ export class ScraperJobsService {
           job.config,
           webhookUrl
         );
+
+        this.logger.info('Apify run started successfully', { 
+          apifyRunId: apifyRun.id,
+          runId: scraperRun.id,
+          jobId: id,
+          tenantId 
+        });
 
         // Update scraper run with Apify details
         const { data: updatedRun, error: updateError } = await this.supabaseService.adminClient
@@ -309,11 +386,23 @@ export class ScraperJobsService {
           .single();
 
         if (updateError) {
+          this.logger.error('Failed to update scraper run with Apify details', { 
+            error: updateError.message,
+            apifyRunId: apifyRun.id,
+            runId: scraperRun.id,
+            tenantId 
+          });
           // If update fails, try to abort the Apify run
           try {
             await this.apifyService.abortRun(apifyRun.id);
+            this.logger.info('Successfully aborted Apify run after update failure', { 
+              apifyRunId: apifyRun.id 
+            });
           } catch (abortError) {
-            this.logger?.warn(`Failed to abort Apify run ${apifyRun.id}: ${abortError.message}`);
+            this.logger.warn('Failed to abort Apify run after update failure', { 
+              apifyRunId: apifyRun.id,
+              abortError: abortError.message 
+            });
           }
           throw new BadRequestException(`Failed to update scraper run: ${updateError.message}`);
         }
@@ -327,9 +416,24 @@ export class ScraperJobsService {
           })
           .eq('id', id);
 
+        this.logger.info('Scraper job triggered successfully', { 
+          runId: updatedRun.id,
+          apifyRunId: updatedRun.apify_run_id,
+          jobId: id,
+          tenantId 
+        });
+
         return updatedRun;
 
       } catch (apifyError) {
+        this.logger.error('Failed to start Apify run', { 
+          error: apifyError.message,
+          runId: scraperRun.id,
+          jobId: id,
+          sourceType: job.source_type,
+          tenantId 
+        });
+
         // If Apify run fails to start, update the scraper run status
         await this.supabaseService.adminClient
           .from('scraper_runs')
@@ -361,7 +465,10 @@ export class ScraperJobsService {
         .eq('tenant_id', tenantId);
 
       if (jobsError) {
-        console.warn('Failed to fetch total jobs:', jobsError);
+        this.logger.warn('Failed to fetch total jobs for stats', { 
+          error: jobsError.message, 
+          tenantId 
+        });
       }
 
       // Get active jobs
@@ -372,7 +479,10 @@ export class ScraperJobsService {
         .eq('is_active', true);
 
       if (activeError) {
-        console.warn('Failed to fetch active jobs:', activeError);
+        this.logger.warn('Failed to fetch active jobs for stats', { 
+          error: activeError.message, 
+          tenantId 
+        });
       }
 
       // Get recent runs (last 24 hours)
@@ -386,7 +496,11 @@ export class ScraperJobsService {
         .gte('started_at', yesterday.toISOString());
 
       if (runsError) {
-        console.warn('Failed to fetch recent runs:', runsError);
+        this.logger.warn('Failed to fetch recent runs for stats', { 
+          error: runsError.message, 
+          tenantId,
+          timeframe: '24h' 
+        });
       }
 
       // Get failed runs (last 24 hours)
@@ -398,7 +512,11 @@ export class ScraperJobsService {
         .gte('started_at', yesterday.toISOString());
 
       if (failedError) {
-        console.warn('Failed to fetch failed runs:', failedError);
+        this.logger.warn('Failed to fetch failed runs for stats', { 
+          error: failedError.message, 
+          tenantId,
+          timeframe: '24h' 
+        });
       }
 
       return {

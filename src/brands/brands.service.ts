@@ -5,12 +5,27 @@ import { SupabaseService } from '../modules/shared/supabase/supabase.service';
 import { CreateBrandDto } from './dto/create-brand.dto';
 import { UpdateBrandDto } from './dto/update-brand.dto';
 import { Brand } from './entities/brand.entity';
+import { LoggerService } from '../common/logger/logger.service';
 
 @Injectable()
 export class BrandsService {
-  constructor(private supabaseService: SupabaseService) {}
+  private logger: ReturnType<LoggerService['setContext']>;
+
+  constructor(
+    private supabaseService: SupabaseService,
+    private loggerService: LoggerService,
+  ) {
+    this.logger = this.loggerService.setContext('BrandsService');
+  }
 
   async create(createBrandDto: CreateBrandDto, tenantId: string): Promise<Brand> {
+    this.logger.info('Creating new brand', { 
+      brandName: createBrandDto.name, 
+      tenantId, 
+      hasKeywords: !!createBrandDto.keywords?.length,
+      hasCompetitors: !!createBrandDto.competitor_brands?.length 
+    });
+
     try {
       // Check if brand name already exists for this tenant
       const { data: existingBrand } = await this.supabaseService.adminClient
@@ -21,6 +36,10 @@ export class BrandsService {
         .single();
 
       if (existingBrand) {
+        this.logger.warn('Brand creation failed - name already exists', { 
+          brandName: createBrandDto.name, 
+          tenantId 
+        });
         throw new ConflictException('Brand with this name already exists');
       }
 
@@ -48,19 +67,36 @@ export class BrandsService {
         .single();
 
       if (error) {
+        this.logger.error('Database error during brand creation', { 
+          error: error.message, 
+          brandName: createBrandDto.name, 
+          tenantId 
+        });
         throw new BadRequestException(`Failed to create brand: ${error.message}`);
       }
 
+      this.logger.info('Brand created successfully', { 
+        brandId: data.id, 
+        brandName: data.name, 
+        tenantId 
+      });
       return data;
     } catch (error) {
       if (error instanceof ConflictException || error instanceof BadRequestException) {
         throw error;
       }
+      this.logger.error('Unexpected error during brand creation', { 
+        error: error.message, 
+        brandName: createBrandDto.name, 
+        tenantId 
+      });
       throw new BadRequestException('Failed to create brand');
     }
   }
 
   async findAll(tenantId: string): Promise<Brand[]> {
+    this.logger.debug('Fetching all brands for tenant', { tenantId });
+    
     try {
       const { data, error } = await this.supabaseService.adminClient
         .from('brands')
@@ -70,9 +106,17 @@ export class BrandsService {
         .order('created_at', { ascending: false });
 
       if (error) {
+        this.logger.error('Database error fetching brands', { 
+          error: error.message, 
+          tenantId 
+        });
         throw new BadRequestException(`Failed to fetch brands: ${error.message}`);
       }
 
+      this.logger.info('Successfully fetched brands', { 
+        tenantId, 
+        count: data?.length || 0 
+      });
       return data || [];
     } catch (error) {
       throw new BadRequestException('Failed to fetch brands');
@@ -211,7 +255,10 @@ export class BrandsService {
         .eq('is_active', true);
 
       if (jobsError) {
-        console.warn('Failed to fetch scraper jobs count:', jobsError);
+        this.logger.warn('Failed to fetch scraper jobs count for brand stats', { 
+          error: jobsError.message, 
+          tenantId 
+        });
       }
 
       // Get recent mentions count (last 30 days)
@@ -225,7 +272,10 @@ export class BrandsService {
         .gte('scraped_at', thirtyDaysAgo.toISOString());
 
       if (mentionsError) {
-        console.warn('Failed to fetch mentions count:', mentionsError);
+        this.logger.warn('Failed to fetch mentions count for brand stats', { 
+          error: mentionsError.message, 
+          tenantId 
+        });
       }
 
       // Calculate total keywords across all brands
@@ -265,7 +315,11 @@ export class BrandsService {
         .eq('is_active', true);
 
       if (jobsError) {
-        console.warn('Failed to fetch scraper jobs count:', jobsError);
+        this.logger.warn('Failed to fetch scraper jobs count for single brand stats', { 
+          error: jobsError.message, 
+          tenantId, 
+          brandId 
+        });
       }
 
       // Get recent mentions count (last 30 days)
@@ -280,7 +334,11 @@ export class BrandsService {
         .gte('scraped_at', thirtyDaysAgo.toISOString());
 
       if (mentionsError) {
-        console.warn('Failed to fetch mentions count:', mentionsError);
+        this.logger.warn('Failed to fetch mentions count for single brand stats', { 
+          error: mentionsError.message, 
+          tenantId, 
+          brandId 
+        });
       }
 
       // Get total mentions count
@@ -291,7 +349,11 @@ export class BrandsService {
         .eq('brand_id', brandId);
 
       if (totalMentionsError) {
-        console.warn('Failed to fetch total mentions count:', totalMentionsError);
+        this.logger.warn('Failed to fetch total mentions count for single brand stats', { 
+          error: totalMentionsError.message, 
+          tenantId, 
+          brandId 
+        });
       }
 
       // Get sentiment breakdown
@@ -303,7 +365,11 @@ export class BrandsService {
 
        
       if (sentimentError) {
-        console.warn('Failed to fetch sentiment data:', sentimentError);
+        this.logger.warn('Failed to fetch sentiment data for single brand stats', { 
+          error: sentimentError.message, 
+          tenantId, 
+          brandId 
+        });
       }
 
       // Calculate sentiment breakdown

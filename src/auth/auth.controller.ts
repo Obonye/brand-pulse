@@ -5,12 +5,19 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from '../modules/auth/dto/register.dto';
 import { LoginDto } from '../modules/auth/dto/login.dto';
 import { JwtAuthGuard } from '../modules/auth/guards/jwt-auth.guard';
+import { LoggerService } from '../common/logger/logger.service';
 
 @ApiTags('Authentication')  // Groups these endpoints in Swagger docs
 @Controller('auth')         // All routes start with /api/auth
 export class AuthController {
+  private logger: ReturnType<LoggerService['setContext']>;
   
-  constructor(private authService: AuthService) {}  // Get the AuthService
+  constructor(
+    private authService: AuthService,
+    private loggerService: LoggerService
+  ) {
+    this.logger = this.loggerService.setContext('AuthController');
+  }
 
   @Post('register')  // POST /api/auth/register
   @ApiOperation({ summary: 'Register new tenant and admin user' })
@@ -23,10 +30,21 @@ export class AuthController {
     description: 'Registration failed' 
   })
   async register(@Body() registerDto: RegisterDto) {
-    // @Body() tells NestJS: "Get data from request body and validate it against RegisterDto"
-    // The validation happens automatically because of class-validator decorators
+    this.logger.info('POST /auth/register - Registration attempt', { 
+      companyName: registerDto.companyName,
+      adminEmail: registerDto.adminEmail,
+      subscriptionTier: registerDto.subscriptionTier 
+    });
     
-    return this.authService.register(registerDto);
+    const result = await this.authService.register(registerDto);
+    
+    this.logger.info('POST /auth/register - Registration successful', { 
+      tenantId: result.tenant.id,
+      tenantName: result.tenant.name,
+      userEmail: result.user.email 
+    });
+    
+    return result;
   }
 
   @Post('login')  // POST /api/auth/login
@@ -40,7 +58,17 @@ export class AuthController {
     description: 'Invalid credentials' 
   })
   async login(@Body() loginDto: LoginDto, @Response() res: ExpressResponse) {
+    this.logger.info('POST /auth/login - Login attempt', { 
+      email: loginDto.email 
+    });
+
     const result = await this.authService.login(loginDto);
+    
+    this.logger.info('POST /auth/login - Login successful', { 
+      userId: result.user.id,
+      email: result.user.email,
+      tenantId: result.tenant.id 
+    });
     
     // Set httpOnly cookie with the access token
     res.cookie('access_token', result.access_token, {
@@ -68,7 +96,17 @@ export class AuthController {
     description: 'Invalid token' 
   })
   async logout(@Request() req: any, @Response() res: ExpressResponse) {
+    this.logger.info('POST /auth/logout - Logout request', { 
+      userId: req.user.id,
+      email: req.user.email 
+    });
+
     const result = await this.authService.logout(req.user);
+    
+    this.logger.info('POST /auth/logout - Logout successful', { 
+      userId: req.user.id,
+      email: req.user.email 
+    });
     
     // Clear the httpOnly cookie
     res.clearCookie('access_token');
@@ -89,6 +127,18 @@ export class AuthController {
     description: 'Invalid token' 
   })
   async getSession(@Request() req: any) {
-    return this.authService.getSession(req.user);
+    this.logger.debug('GET /auth/session - Session check request', { 
+      userId: req.user.id,
+      email: req.user.email 
+    });
+
+    const result = await this.authService.getSession(req.user);
+    
+    this.logger.debug('GET /auth/session - Session valid', { 
+      userId: req.user.id,
+      email: req.user.email 
+    });
+    
+    return result;
   }
 }

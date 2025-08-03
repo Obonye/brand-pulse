@@ -1,12 +1,13 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { SupabaseService } from '../shared/supabase/supabase.service';
 import { OpenAIService, SentimentAnalysisResult } from '../shared/openai/openai.service';
 import { SentimentAnalysis } from './entities/sentiment-analysis.entity';
 import { ScrapedMention } from '../mentions/entities/mention.entity';
+import { LoggerService } from '../../common/logger/logger.service';
 
 @Injectable()
 export class SentimentService {
-  private readonly logger = new Logger(SentimentService.name);
+  private logger: ReturnType<LoggerService['setContext']>;
   private readonly AI_MODEL = 'gpt-4.1';
   private readonly AI_PROVIDER = 'openai';
   private readonly ANALYSIS_VERSION = '1.0';
@@ -14,14 +15,29 @@ export class SentimentService {
   constructor(
     private supabaseService: SupabaseService,
     private openAIService: OpenAIService,
-  ) {}
+    private loggerService: LoggerService,
+  ) {
+    this.logger = this.loggerService.setContext('SentimentService');
+  }
 
   async analyzeMentionSentiment(mention: ScrapedMention, brandName?: string): Promise<SentimentAnalysis | null> {
+    this.logger.debug('Starting sentiment analysis for mention', {
+      mentionId: mention.id,
+      sourceType: mention.source_type,
+      brandName,
+      author: mention.author,
+      contentLength: mention.content?.length || 0
+    });
+
     try {
       // Check if analysis already exists
       const existingAnalysis = await this.findByMentionId(mention.id);
       if (existingAnalysis) {
-        this.logger.log(`Sentiment analysis already exists for mention ${mention.id}`);
+        this.logger.info('Sentiment analysis already exists', {
+          mentionId: mention.id,
+          existingSentiment: existingAnalysis.sentiment,
+          existingConfidence: existingAnalysis.confidence
+        });
         return existingAnalysis;
       }
 
@@ -32,21 +48,44 @@ export class SentimentService {
         author: mention.author,
       };
 
+      this.logger.debug('Calling OpenAI for sentiment analysis', {
+        mentionId: mention.id,
+        aiModel: this.AI_MODEL,
+        context
+      });
+
       const result = await this.openAIService.analyzeSentiment(mention.content, context);
       
       // Store the result
       const sentimentAnalysis = await this.createSentimentAnalysis(mention, result);
       
-      this.logger.log(`Sentiment analysis completed for mention ${mention.id}: ${result.sentiment} (${result.confidence})`);
+      this.logger.info('Sentiment analysis completed successfully', {
+        mentionId: mention.id,
+        sentiment: result.sentiment,
+        confidence: result.confidence,
+        aiModel: this.AI_MODEL,
+        hasReasoning: !!result.reasoning
+      });
       return sentimentAnalysis;
 
     } catch (error) {
-      this.logger.error(`Failed to analyze sentiment for mention ${mention.id}: ${error.message}`);
+      this.logger.error('Failed to analyze sentiment for mention', {
+        error: error.message,
+        mentionId: mention.id,
+        sourceType: mention.source_type,
+        brandName
+      });
       return null;
     }
   }
 
   async batchAnalyzeMentions(mentions: ScrapedMention[], brandName?: string): Promise<SentimentAnalysis[]> {
+    this.logger.info('Starting batch sentiment analysis', {
+      totalMentions: mentions.length,
+      brandName,
+      aiModel: this.AI_MODEL
+    });
+
     const results: SentimentAnalysis[] = [];
     
     // Filter out mentions that already have analysis
@@ -58,12 +97,17 @@ export class SentimentService {
       }
     }
 
+    this.logger.info('Filtered mentions for analysis', {
+      totalMentions: mentions.length,
+      alreadyAnalyzed: mentions.length - mentionsToAnalyze.length,
+      toAnalyze: mentionsToAnalyze.length,
+      brandName
+    });
+
     if (mentionsToAnalyze.length === 0) {
-      this.logger.log('No new mentions to analyze');
+      this.logger.info('No new mentions to analyze - all have existing analysis');
       return results;
     }
-
-    this.logger.log(`Analyzing sentiment for ${mentionsToAnalyze.length} mentions`);
 
     // Prepare batch analysis
     const batchItems = mentionsToAnalyze.map(mention => ({
@@ -76,10 +120,24 @@ export class SentimentService {
       }
     }));
 
+    this.logger.debug('Prepared batch analysis items', {
+      batchSize: batchItems.length,
+      brandName
+    });
+
     // Perform batch analysis
     const batchResults = await this.openAIService.batchAnalyzeSentiment(batchItems);
 
+    this.logger.info('Received batch analysis results from OpenAI', {
+      requestedCount: batchItems.length,
+      receivedCount: batchResults.length,
+      brandName
+    });
+
     // Store results
+    let successCount = 0;
+    let failureCount = 0;
+
     for (const batchResult of batchResults) {
       const mention = mentionsToAnalyze.find(m => m.id === batchResult.id);
       if (mention) {
@@ -87,14 +145,27 @@ export class SentimentService {
           const sentimentAnalysis = await this.createSentimentAnalysis(mention, batchResult.result);
           if (sentimentAnalysis) {
             results.push(sentimentAnalysis);
+            successCount++;
           }
         } catch (error) {
-          this.logger.error(`Failed to store sentiment analysis for mention ${mention.id}: ${error.message}`);
+          failureCount++;
+          this.logger.error('Failed to store sentiment analysis for mention', {
+            error: error.message,
+            mentionId: mention.id,
+            sentiment: batchResult.result?.sentiment
+          });
         }
       }
     }
 
-    this.logger.log(`Successfully analyzed sentiment for ${results.length} mentions`);
+    this.logger.info('Batch sentiment analysis completed', {
+      totalMentions: mentions.length,
+      analyzedMentions: mentionsToAnalyze.length,
+      successfullyStored: successCount,
+      failed: failureCount,
+      brandName
+    });
+
     return results;
   }
 
@@ -131,7 +202,11 @@ export class SentimentService {
       .single();
 
     if (error && error.code !== 'PGRST116') { // PGRST116 is "not found"
-      this.logger.error(`Failed to find sentiment analysis: ${error.message}`);
+      this.logger.error('Failed to find sentiment analysis by mention ID', {
+        error: error.message,
+        mentionId,
+        errorCode: error.code
+      });
       return null;
     }
 
@@ -161,7 +236,12 @@ export class SentimentService {
       .range(offset, offset + limit - 1);
 
     if (error) {
-      this.logger.error(`Failed to find sentiment analyses: ${error.message}`);
+      this.logger.error('Failed to find sentiment analyses by tenant', {
+        error: error.message,
+        tenantId,
+        limit,
+        offset
+      });
       return [];
     }
 
@@ -191,7 +271,11 @@ export class SentimentService {
     const { data, error } = await query;
 
     if (error) {
-      this.logger.error(`Failed to get sentiment stats: ${error.message}`);
+      this.logger.error('Failed to get sentiment stats', {
+        error: error.message,
+        tenantId,
+        brandId
+      });
       return { total: 0, positive: 0, negative: 0, neutral: 0, average_confidence: 0 };
     }
 
@@ -254,7 +338,14 @@ export class SentimentService {
 
       return data || [];
     } catch (error) {
-      this.logger.error(`Error getting sentiment trends: ${error.message}`);
+      this.logger.error('Error getting sentiment trends', {
+        error: error.message,
+        tenantId,
+        brandId,
+        interval,
+        dateFrom,
+        dateTo
+      });
       throw error;
     }
   }

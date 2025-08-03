@@ -1,10 +1,11 @@
-import { Controller, Post, Body, Headers, Logger, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Body, Headers, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { ScraperJobsService } from './scraper-jobs.service';
 import { SupabaseService } from '../shared/supabase/supabase.service';
 import { MentionsService } from '../mentions/mentions.service';
 import { ApifyService } from '../shared/apify/apify.service';
 import { ScrapedPostsService } from '../scraped-posts/scraped-posts.service';
+import { LoggerService } from '../../common/logger/logger.service';
 
 export interface ApifyWebhookPayload {
   eventType: 'ACTOR.RUN.SUCCEEDED' | 'ACTOR.RUN.FAILED' | 'ACTOR.RUN.ABORTED' | 'ACTOR.RUN.TIMED_OUT';
@@ -20,7 +21,7 @@ export interface ApifyWebhookPayload {
 @ApiTags('Apify Webhooks')
 @Controller('webhooks/apify')
 export class ApifyWebhookController {
-  private readonly logger = new Logger(ApifyWebhookController.name);
+  private logger: ReturnType<LoggerService['setContext']>;
 
   constructor(
     private readonly scraperJobsService: ScraperJobsService,
@@ -28,7 +29,10 @@ export class ApifyWebhookController {
     private readonly mentionsService: MentionsService,
     private readonly apifyService: ApifyService,
     private readonly scrapedPostsService: ScrapedPostsService,
-  ) {}
+    private readonly loggerService: LoggerService,
+  ) {
+    this.logger = this.loggerService.setContext('ApifyWebhookController');
+  }
 
   @Post()
   @ApiOperation({ summary: 'Handle Apify webhook notifications' })
@@ -39,11 +43,20 @@ export class ApifyWebhookController {
     @Headers('x-apify-webhook-signature') signature?: string,
   ): Promise<{ status: string; message: string }> {
     try {
-      this.logger.log(`🔥 WEBHOOK RECEIVED: ${payload.eventType} for run ${payload.eventData.actorRunId}`);
-      this.logger.log(`🔥 WEBHOOK PAYLOAD: ${JSON.stringify(payload, null, 2)}`);
+      this.logger.info('Apify webhook received', { 
+        eventType: payload.eventType,
+        actorRunId: payload.eventData.actorRunId,
+        actorId: payload.eventData.actorId,
+        createdAt: payload.createdAt
+      });
 
       // Validate webhook payload
       if (!payload.eventType || !payload.eventData?.actorRunId) {
+        this.logger.error('Invalid webhook payload received', { 
+          hasEventType: !!payload.eventType,
+          hasActorRunId: !!payload.eventData?.actorRunId,
+          payload: JSON.stringify(payload) 
+        });
         throw new BadRequestException('Invalid webhook payload');
       }
 
@@ -64,9 +77,21 @@ export class ApifyWebhookController {
         .single();
 
       if (findError || !scraperRun) {
-        this.logger.warn(`Scraper run not found for Apify run ID: ${payload.eventData.actorRunId}`);
+        this.logger.warn('Scraper run not found for Apify run', { 
+          apifyRunId: payload.eventData.actorRunId,
+          eventType: payload.eventType,
+          error: findError?.message 
+        });
         return { status: 'ignored', message: 'Scraper run not found' };
       }
+
+      this.logger.debug('Scraper run found, processing webhook', { 
+        runId: scraperRun.id,
+        jobId: scraperRun.scraper_jobs.id,
+        tenantId: scraperRun.scraper_jobs.tenant_id,
+        sourceType: scraperRun.scraper_jobs.source_type,
+        eventType: payload.eventType
+      });
 
       // Update scraper run status based on webhook event
       const updateData: any = {
@@ -100,7 +125,11 @@ export class ApifyWebhookController {
           break;
 
         default:
-          this.logger.warn(`Unhandled webhook event type: ${payload.eventType}`);
+          this.logger.warn('Unhandled webhook event type', { 
+            eventType: payload.eventType,
+            apifyRunId: payload.eventData.actorRunId,
+            runId: scraperRun.id 
+          });
           return { status: 'ignored', message: 'Unhandled event type' };
       }
 
@@ -111,20 +140,45 @@ export class ApifyWebhookController {
         .eq('id', scraperRun.id);
 
       if (updateError) {
-        this.logger.error(`Failed to update scraper run: ${updateError.message}`);
+        this.logger.error('Failed to update scraper run', { 
+          error: updateError.message,
+          runId: scraperRun.id,
+          eventType: payload.eventType,
+          apifyRunId: payload.eventData.actorRunId 
+        });
         throw new BadRequestException(`Failed to update scraper run: ${updateError.message}`);
       }
 
+      this.logger.info('Scraper run updated successfully', { 
+        runId: scraperRun.id,
+        newStatus: updateData.status,
+        eventType: payload.eventType,
+        tenantId: scraperRun.scraper_jobs.tenant_id
+      });
+
       // If run completed successfully, trigger data processing
       if (payload.eventType === 'ACTOR.RUN.SUCCEEDED') {
+        this.logger.info('Triggering data processing for completed run', { 
+          runId: scraperRun.id,
+          sourceType: scraperRun.scraper_jobs.source_type 
+        });
         await this.processCompletedRun(scraperRun);
       }
 
-      this.logger.log(`Successfully processed webhook for run ${scraperRun.id}`);
+      this.logger.info('Webhook processed successfully', { 
+        runId: scraperRun.id,
+        eventType: payload.eventType,
+        status: 'success'
+      });
       return { status: 'success', message: 'Webhook processed successfully' };
 
     } catch (error) {
-      this.logger.error(`Failed to process Apify webhook: ${error.message}`, error.stack);
+      this.logger.error('Failed to process Apify webhook', { 
+        error: error.message,
+        eventType: payload?.eventType,
+        apifyRunId: payload?.eventData?.actorRunId,
+        stack: error.stack
+      });
       if (error instanceof BadRequestException) {
         throw error;
       }
@@ -134,7 +188,12 @@ export class ApifyWebhookController {
 
   private async processCompletedRun(scraperRun: any): Promise<void> {
     try {
-      this.logger.log(`Processing completed run data for scraper run ${scraperRun.id}`);
+      this.logger.info('Processing completed run data', { 
+        runId: scraperRun.id,
+        sourceType: scraperRun.scraper_jobs.source_type,
+        brandId: scraperRun.scraper_jobs.brand_id,
+        tenantId: scraperRun.scraper_jobs.tenant_id
+      });
 
       // Check if this is an Instagram posts scraper that needs comment processing
       if (scraperRun.scraper_jobs.source_type === 'instagram' && !scraperRun.metadata?.is_comments_scraper) {
@@ -158,10 +217,19 @@ export class ApifyWebhookController {
         })
         .eq('id', scraperRun.id);
 
-      this.logger.log(`Successfully processed mentions for run ${scraperRun.id}`);
+      this.logger.info('Successfully processed mentions for run', { 
+        runId: scraperRun.id,
+        sourceType: scraperRun.scraper_jobs.source_type,
+        tenantId: scraperRun.scraper_jobs.tenant_id
+      });
 
     } catch (error) {
-      this.logger.error(`Failed to process completed run data: ${error.message}`, error.stack);
+      this.logger.error('Failed to process completed run data', { 
+        error: error.message,
+        runId: scraperRun.id,
+        tenantId: scraperRun.scraper_jobs.tenant_id,
+        stack: error.stack
+      });
       
       // Update run with processing error
       await this.supabaseService.adminClient
@@ -180,18 +248,29 @@ export class ApifyWebhookController {
 
   private async handleInstagramPostsCompleted(scraperRun: any): Promise<void> {
     try {
-      this.logger.log(`Handling Instagram posts completion for run ${scraperRun.id}`);
+      this.logger.info('Handling Instagram posts completion', { 
+        runId: scraperRun.id,
+        sourceType: scraperRun.scraper_jobs.source_type,
+        tenantId: scraperRun.scraper_jobs.tenant_id
+      });
 
       // Get the post URLs from the completed Instagram posts scraper
       const postsData = await this.apifyService.getRunData(scraperRun.apify_run_id);
       
       if (!postsData || postsData.length === 0) {
-        this.logger.warn(`No posts data found for Instagram run ${scraperRun.id}`);
+        this.logger.warn('No posts data found for Instagram run', { 
+          runId: scraperRun.id,
+          tenantId: scraperRun.scraper_jobs.tenant_id
+        });
         return;
       }
 
       // Store scraped posts data first
-      this.logger.log(`Storing ${postsData.length} Instagram posts data`);
+      this.logger.info('Storing Instagram posts data', { 
+        postsCount: postsData.length,
+        runId: scraperRun.id,
+        tenantId: scraperRun.scraper_jobs.tenant_id
+      });
       const storedPosts = await this.scrapedPostsService.processInstagramPostsData(
         postsData,
         scraperRun.scraper_jobs.tenant_id,
@@ -212,11 +291,19 @@ export class ApifyWebhookController {
         .slice(0, 10); // Limit to 10 posts for cost control
 
       if (postUrls.length === 0) {
-        this.logger.warn(`No valid post URLs found for Instagram run ${scraperRun.id}`);
+        this.logger.warn('No valid post URLs found for Instagram run', { 
+          runId: scraperRun.id,
+          tenantId: scraperRun.scraper_jobs.tenant_id
+        });
         return;
       }
 
-      this.logger.log(`Stored ${storedPosts.length} posts, found ${postUrls.length} Instagram post URLs, triggering comments scraper`);
+      this.logger.info('Posts processed, triggering comments scraper', { 
+        storedPostsCount: storedPosts.length,
+        postUrlsCount: postUrls.length,
+        runId: scraperRun.id,
+        tenantId: scraperRun.scraper_jobs.tenant_id
+      });
 
       // Create configuration for comments scraper
       const commentsConfig = {
@@ -274,10 +361,21 @@ export class ApifyWebhookController {
         })
         .eq('id', scraperRun.id);
 
-      this.logger.log(`Successfully triggered Instagram comments scraper. Comments run ID: ${newRun.id}`);
+      this.logger.info('Successfully triggered Instagram comments scraper', { 
+        commentsRunId: newRun.id,
+        parentRunId: scraperRun.id,
+        apifyRunId: commentsRun.id,
+        postUrlsCount: postUrls.length,
+        tenantId: scraperRun.scraper_jobs.tenant_id
+      });
 
     } catch (error) {
-      this.logger.error(`Failed to handle Instagram posts completion: ${error.message}`, error.stack);
+      this.logger.error('Failed to handle Instagram posts completion', { 
+        error: error.message,
+        runId: scraperRun.id,
+        tenantId: scraperRun.scraper_jobs.tenant_id,
+        stack: error.stack
+      });
       
       // Update run with error
       await this.supabaseService.adminClient

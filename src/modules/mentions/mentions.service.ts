@@ -1,49 +1,91 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { SupabaseService } from '../shared/supabase/supabase.service';
 import { ApifyService, ApifyDatasetItem } from '../shared/apify/apify.service';
 import { SentimentService } from '../sentiment/sentiment.service';
 import { ScrapedMention } from './entities/mention.entity';
+import { LoggerService } from '../../common/logger/logger.service';
 
 @Injectable()
 export class MentionsService {
-  private readonly logger = new Logger(MentionsService.name);
+  private logger: ReturnType<LoggerService['setContext']>;
 
   constructor(
     private supabaseService: SupabaseService,
     private apifyService: ApifyService,
     private sentimentService: SentimentService,
-  ) {}
+    private loggerService: LoggerService,
+  ) {
+    this.logger = this.loggerService.setContext('MentionsService');
+  }
 
   /**
    * Process and store mentions from completed Apify run
    */
   async processApifyRunData(scraperRun: any): Promise<void> {
-    try {
-      this.logger.log(`Processing mentions for scraper run ${scraperRun.id}`);
+    this.logger.info('Processing mentions from completed Apify run', {
+      runId: scraperRun.id,
+      apifyRunId: scraperRun.apify_run_id,
+      tenantId: scraperRun.tenant_id,
+      brandId: scraperRun.scraper_jobs?.brand_id,
+      sourceType: scraperRun.scraper_jobs?.source_type
+    });
 
+    try {
       // Get Apify run data - use the actual apify_run_id field from database
       const apifyRunId = scraperRun.apify_run_id;
       if (!apifyRunId) {
+        this.logger.error('No Apify run ID found in scraper run record', {
+          runId: scraperRun.id,
+          tenantId: scraperRun.tenant_id
+        });
         throw new Error('No Apify run ID found in scraper run record');
       }
 
       // Fetch data from Apify
       const apifyData = await this.apifyService.getRunData(apifyRunId);
-      this.logger.log(`Retrieved ${apifyData.length} items from Apify run ${apifyRunId}`);
+      this.logger.info('Retrieved data from Apify run', {
+        apifyRunId,
+        itemCount: apifyData.length,
+        runId: scraperRun.id,
+        tenantId: scraperRun.tenant_id
+      });
 
       if (apifyData.length === 0) {
-        this.logger.warn(`No data found in Apify run ${apifyRunId}`);
+        this.logger.warn('No data found in Apify run', {
+          apifyRunId,
+          runId: scraperRun.id,
+          tenantId: scraperRun.tenant_id
+        });
         return;
       }
 
       // Transform and insert mentions
       const mentions = this.transformApifyDataToMentions(apifyData, scraperRun);
+      this.logger.debug('Transformed Apify data to mentions', {
+        originalCount: apifyData.length,
+        validMentionsCount: mentions.length,
+        runId: scraperRun.id,
+        tenantId: scraperRun.tenant_id
+      });
+
       const insertedMentions = await this.insertMentions(mentions);
 
-      this.logger.log(`Successfully inserted ${insertedMentions.length} mentions for run ${scraperRun.id}`);
+      this.logger.info('Successfully processed mentions', {
+        totalItems: apifyData.length,
+        validMentions: mentions.length,
+        insertedMentions: insertedMentions.length,
+        duplicatesSkipped: mentions.length - insertedMentions.length,
+        runId: scraperRun.id,
+        tenantId: scraperRun.tenant_id
+      });
 
       // Trigger sentiment analysis for newly inserted mentions
       if (insertedMentions.length > 0) {
+        this.logger.info('Triggering sentiment analysis', {
+          mentionsCount: insertedMentions.length,
+          brandName: scraperRun.scraper_jobs?.brands?.name,
+          runId: scraperRun.id
+        });
         this.triggerSentimentAnalysis(insertedMentions, scraperRun.scraper_jobs?.brands?.name);
       }
 
@@ -51,7 +93,12 @@ export class MentionsService {
       await this.updateScraperRunStats(scraperRun.id, apifyData.length, insertedMentions.length);
 
     } catch (error) {
-      this.logger.error(`Failed to process Apify run data: ${error.message}`, error.stack);
+      this.logger.error('Failed to process Apify run data', {
+        error: error.message,
+        runId: scraperRun.id,
+        tenantId: scraperRun.tenant_id,
+        stack: error.stack
+      });
       throw error;
     }
   }
@@ -168,13 +215,25 @@ export class MentionsService {
         .select('*');
 
       if (error) {
-        this.logger.error(`Failed to insert mentions: ${error.message}`);
+        this.logger.error('Failed to insert mentions', {
+          error: error.message,
+          mentionsCount: mentions.length,
+          conflictColumn: 'tenant_id,source_type,source_id'
+        });
         throw new BadRequestException(`Failed to insert mentions: ${error.message}`);
       }
 
+      this.logger.debug('Successfully inserted mentions', {
+        totalMentions: mentions.length,
+        insertedCount: data?.length || 0
+      });
+
       return data || [];
     } catch (error) {
-      this.logger.error(`Database error inserting mentions: ${error.message}`);
+      this.logger.error('Database error inserting mentions', {
+        error: error.message,
+        mentionsCount: mentions.length
+      });
       throw error;
     }
   }
@@ -184,18 +243,33 @@ export class MentionsService {
    */
   private async triggerSentimentAnalysis(mentions: ScrapedMention[], brandName?: string): Promise<void> {
     try {
-      this.logger.log(`Triggering sentiment analysis for ${mentions.length} mentions`);
+      this.logger.debug('Starting asynchronous sentiment analysis', {
+        mentionsCount: mentions.length,
+        brandName
+      });
       
       // Run sentiment analysis asynchronously to avoid blocking the webhook response
       setImmediate(async () => {
         try {
           await this.sentimentService.batchAnalyzeMentions(mentions, brandName);
+          this.logger.info('Sentiment analysis completed successfully', {
+            mentionsCount: mentions.length,
+            brandName
+          });
         } catch (error) {
-          this.logger.error(`Sentiment analysis failed: ${error.message}`);
+          this.logger.error('Sentiment analysis failed', {
+            error: error.message,
+            mentionsCount: mentions.length,
+            brandName
+          });
         }
       });
     } catch (error) {
-      this.logger.warn(`Failed to trigger sentiment analysis: ${error.message}`);
+      this.logger.warn('Failed to trigger sentiment analysis', {
+        error: error.message,
+        mentionsCount: mentions.length,
+        brandName
+      });
     }
   }
 
@@ -214,7 +288,12 @@ export class MentionsService {
         })
         .eq('id', runId);
     } catch (error) {
-      this.logger.warn(`Failed to update scraper run stats: ${error.message}`);
+      this.logger.warn('Failed to update scraper run stats', {
+        error: error.message,
+        runId,
+        totalItems,
+        insertedItems
+      });
     }
   }
 
@@ -385,7 +464,12 @@ export class MentionsService {
       const { data, error, count } = await query;
 
       if (error) {
-        this.logger.error(`Failed to fetch table data: ${error.message}`);
+        this.logger.error('Failed to fetch mentions table data', {
+          error: error.message,
+          tenantId,
+          filters: { brand_id, source_type, sentiment, search, start_date, end_date },
+          pagination: { page, limit, offset }
+        });
         throw new BadRequestException(`Failed to fetch mentions table data: ${error.message}`);
       }
 
@@ -410,7 +494,11 @@ export class MentionsService {
         limit,
       };
     } catch (error) {
-      this.logger.error(`Failed to fetch table data: ${error.message}`);
+      this.logger.error('Failed to fetch mentions table data', {
+        error: error.message,
+        tenantId,
+        filters: options
+      });
       throw new BadRequestException('Failed to fetch mentions table data');
     }
   }

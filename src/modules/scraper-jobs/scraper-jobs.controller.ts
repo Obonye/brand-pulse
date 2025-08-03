@@ -27,13 +27,21 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../auth/guards/tenant.guard';
 import { RolesGuard, Roles } from '../auth/guards/roles.guard';
 import { CurrentTenant } from '../auth/decorators/current-tenant.decorator';
+import { LoggerService } from '../../common/logger/logger.service';
 
 @ApiTags('Scraper Jobs')
 @ApiBearerAuth()
 @Controller('scraper-jobs')
 @UseGuards(JwtAuthGuard, TenantGuard)
 export class ScraperJobsController {
-  constructor(private readonly scraperJobsService: ScraperJobsService) {}
+  private logger: ReturnType<LoggerService['setContext']>;
+
+  constructor(
+    private readonly scraperJobsService: ScraperJobsService,
+    private readonly loggerService: LoggerService,
+  ) {
+    this.logger = this.loggerService.setContext('ScraperJobsController');
+  }
 
   @Post()
   @UseGuards(RolesGuard)
@@ -47,7 +55,22 @@ export class ScraperJobsController {
     @Body() createScraperJobDto: CreateScraperJobDto,
     @CurrentTenant() tenantId: string,
   ) {
+    this.logger.info('POST /scraper-jobs - Create scraper job request', { 
+      jobName: createScraperJobDto.name,
+      sourceType: createScraperJobDto.source_type,
+      brandId: createScraperJobDto.brand_id,
+      tenantId 
+    });
+
     const job = await this.scraperJobsService.create(createScraperJobDto, tenantId);
+    
+    this.logger.info('POST /scraper-jobs - Scraper job created successfully', { 
+      jobId: job.id,
+      jobName: job.name,
+      sourceType: job.source_type,
+      tenantId 
+    });
+
     return {
       message: 'Scraper job created successfully',
       job,
@@ -135,7 +158,20 @@ export class ScraperJobsController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentTenant() tenantId: string,
   ) {
+    this.logger.info('POST /scraper-jobs/:id/trigger - Trigger job request', { 
+      jobId: id,
+      tenantId 
+    });
+
     const run = await this.scraperJobsService.triggerJob(id, tenantId);
+    
+    this.logger.info('POST /scraper-jobs/:id/trigger - Job triggered successfully', { 
+      jobId: id,
+      runId: run.id,
+      apifyRunId: run.apify_run_id,
+      tenantId 
+    });
+
     return {
       message: 'Scraper job triggered successfully',
       run,
@@ -176,7 +212,20 @@ export class ScraperJobsController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentTenant() tenantId: string,
   ) {
+    this.logger.info('PATCH /scraper-jobs/:id/toggle - Toggle job status request', { 
+      jobId: id,
+      tenantId 
+    });
+
     const job = await this.scraperJobsService.toggleActive(id, tenantId);
+    
+    this.logger.info('PATCH /scraper-jobs/:id/toggle - Job status toggled successfully', { 
+      jobId: id,
+      jobName: job.name,
+      newStatus: job.is_active ? 'active' : 'inactive',
+      tenantId 
+    });
+
     return {
       message: `Scraper job ${job.is_active ? 'activated' : 'deactivated'} successfully`,
       job,

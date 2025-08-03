@@ -15,6 +15,7 @@ import { ScraperJobsModule } from './modules/scraper-jobs/scraper-jobs.module';
 import { SentimentModule } from './modules/sentiment/sentiment.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { MentionsModule } from './modules/mentions/mentions.module';
+import { LoggerModule } from './common/logger/logger.module';
 
 @Module({
   imports: [
@@ -42,6 +43,9 @@ import { MentionsModule } from './modules/mentions/mentions.module';
       ttl: 60000, // 60 seconds
       limit: 10,   // 10 requests per minute
     }]),
+    
+    // Logging
+    LoggerModule,
     
     // Feature modules
     AuthModule,

@@ -6,6 +6,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from '../modules/auth/strategies/jwt.strategy';
 import { SharedModule } from '../shared/shared.module';
+import { LoggerService } from '../common/logger/logger.service';
 
 @Module({
   imports: [
@@ -22,7 +23,7 @@ import { SharedModule } from '../shared/shared.module';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, LoggerService],
   exports: [AuthService],
 })
 export class AuthModule {}

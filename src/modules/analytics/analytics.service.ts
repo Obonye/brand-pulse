@@ -1,5 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { SupabaseService } from '../shared/supabase/supabase.service';
+import { LoggerService } from '../../common/logger/logger.service';
 
 export interface SentimentTrend {
   period: string;
@@ -62,9 +63,14 @@ export interface AnalyticsSummary {
 
 @Injectable()
 export class AnalyticsService {
-  private readonly logger = new Logger(AnalyticsService.name);
+  private logger: ReturnType<LoggerService['setContext']>;
 
-  constructor(private supabaseService: SupabaseService) {}
+  constructor(
+    private supabaseService: SupabaseService,
+    private loggerService: LoggerService,
+  ) {
+    this.logger = this.loggerService.setContext('AnalyticsService');
+  }
 
   async getSentimentTrends(
     tenantId: string,
@@ -76,11 +82,19 @@ export class AnalyticsService {
       interval?: 'day' | 'week' | 'month';
     } = {}
   ): Promise<SentimentTrend[]> {
-    try {
-      // Default to 30 days if no dates provided
-      const dateFrom = options.dateFrom || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-      const dateTo = options.dateTo || new Date().toISOString();
+    const dateFrom = options.dateFrom || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const dateTo = options.dateTo || new Date().toISOString();
 
+    this.logger.info('Fetching sentiment trends analytics', {
+      tenantId,
+      brandId: options.brandId,
+      sourceType: options.sourceType,
+      dateRange: { from: dateFrom, to: dateTo },
+      interval: options.interval || 'day',
+      hasFilters: !!(options.brandId || options.sourceType)
+    });
+
+    try {
       const { data, error } = await this.supabaseService.adminClient.rpc(
         'get_sentiment_trends',
         {
@@ -94,12 +108,31 @@ export class AnalyticsService {
       );
 
       if (error) {
+        this.logger.error('Failed to fetch sentiment trends from database', {
+          error: error.message,
+          tenantId,
+          brandId: options.brandId,
+          sourceType: options.sourceType,
+          interval: options.interval
+        });
         throw new Error(`Failed to get sentiment trends: ${error.message}`);
       }
 
+      this.logger.info('Sentiment trends analytics retrieved successfully', {
+        tenantId,
+        brandId: options.brandId,
+        dataPoints: data?.length || 0,
+        interval: options.interval || 'day',
+        dateRange: { from: dateFrom, to: dateTo }
+      });
+
       return data || [];
     } catch (error) {
-      this.logger.error(`Error getting sentiment trends: ${error.message}`);
+      this.logger.error('Error in getSentimentTrends method', {
+        error: error.message,
+        tenantId,
+        options
+      });
       throw error;
     }
   }
@@ -114,11 +147,19 @@ export class AnalyticsService {
       interval?: 'day' | 'week' | 'month';
     } = {}
   ): Promise<MentionVolumeAnalytics[]> {
-    try {
-      // Default to 30 days if no dates provided
-      const dateFrom = options.dateFrom || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-      const dateTo = options.dateTo || new Date().toISOString();
+    const dateFrom = options.dateFrom || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const dateTo = options.dateTo || new Date().toISOString();
 
+    this.logger.info('Fetching mention volume analytics', {
+      tenantId,
+      brandId: options.brandId,
+      sourceType: options.sourceType,
+      dateRange: { from: dateFrom, to: dateTo },
+      interval: options.interval || 'day',
+      hasFilters: !!(options.brandId || options.sourceType)
+    });
+
+    try {
       const { data, error } = await this.supabaseService.adminClient.rpc(
         'get_mention_volume_analytics',
         {
@@ -132,12 +173,31 @@ export class AnalyticsService {
       );
 
       if (error) {
+        this.logger.error('Failed to fetch mention volume analytics from database', {
+          error: error.message,
+          tenantId,
+          brandId: options.brandId,
+          sourceType: options.sourceType,
+          interval: options.interval
+        });
         throw new Error(`Failed to get mention volume analytics: ${error.message}`);
       }
 
+      this.logger.info('Mention volume analytics retrieved successfully', {
+        tenantId,
+        brandId: options.brandId,
+        dataPoints: data?.length || 0,
+        interval: options.interval || 'day',
+        dateRange: { from: dateFrom, to: dateTo }
+      });
+
       return data || [];
     } catch (error) {
-      this.logger.error(`Error getting mention volume analytics: ${error.message}`);
+      this.logger.error('Error in getMentionVolumeAnalytics method', {
+        error: error.message,
+        tenantId,
+        options
+      });
       throw error;
     }
   }
@@ -274,11 +334,25 @@ export class AnalyticsService {
   }
 
   async getDashboardData(tenantId: string, brandId?: string) {
+    this.logger.info('Fetching comprehensive dashboard analytics data', {
+      tenantId,
+      brandId,
+      period: 'last_7_days',
+      hasBrandFilter: !!brandId
+    });
+
     try {
       // Get data for the last 7 days for dashboard
       const dateFrom = new Date();
       dateFrom.setDate(dateFrom.getDate() - 7);
       const dateTo = new Date();
+
+      this.logger.debug('Starting parallel analytics data fetch', {
+        tenantId,
+        brandId,
+        dateRange: { from: dateFrom.toISOString(), to: dateTo.toISOString() },
+        queries: ['summary', 'sentiment_trends', 'volume_analytics', 'source_performance']
+      });
 
       const [summary, sentimentTrends, volumeAnalytics, sourcePerformance] = await Promise.all([
         this.getAnalyticsSummary(tenantId, { 
@@ -305,6 +379,19 @@ export class AnalyticsService {
         }),
       ]);
 
+      this.logger.info('Dashboard analytics data compiled successfully', {
+        tenantId,
+        brandId,
+        dataPoints: {
+          totalMentions: summary.total_mentions,
+          sentimentTrendPoints: sentimentTrends.length,
+          volumeDataPoints: volumeAnalytics.length,
+          sourcesAnalyzed: sourcePerformance.length
+        },
+        sentimentScore: summary.overall_sentiment_score,
+        period: { days: 7, from: dateFrom.toISOString(), to: dateTo.toISOString() }
+      });
+
       return {
         summary,
         sentiment_trends: sentimentTrends,
@@ -317,7 +404,12 @@ export class AnalyticsService {
         }
       };
     } catch (error) {
-      this.logger.error(`Error getting dashboard data: ${error.message}`);
+      this.logger.error('Error compiling dashboard analytics data', {
+        error: error.message,
+        tenantId,
+        brandId,
+        stack: error.stack
+      });
       throw error;
     }
   }
@@ -331,7 +423,23 @@ export class AnalyticsService {
       format: 'csv' | 'json';
     }
   ): Promise<string | object> {
+    this.logger.info('Starting analytics data export', {
+      tenantId,
+      brandId: options.brandId,
+      format: options.format,
+      dateRange: {
+        from: options.dateFrom || 'default_30_days',
+        to: options.dateTo || 'today'
+      }
+    });
+
     try {
+      this.logger.debug('Fetching comprehensive analytics data for export', {
+        tenantId,
+        brandId: options.brandId,
+        format: options.format
+      });
+
       // Get comprehensive analytics data
       const [summary, sentimentTrends, volumeAnalytics, sourcePerformance] = await Promise.all([
         this.getAnalyticsSummary(tenantId, {
@@ -375,12 +483,47 @@ export class AnalyticsService {
       };
 
       if (options.format === 'csv') {
-        return this.convertToCSV(exportData);
+        this.logger.info('Converting analytics data to CSV format', {
+          tenantId,
+          dataPoints: {
+            sentimentTrends: sentimentTrends.length,
+            volumeAnalytics: volumeAnalytics.length,
+            sourcePerformance: sourcePerformance.length
+          }
+        });
+        const csvData = this.convertToCSV(exportData);
+        
+        this.logger.info('Analytics CSV export completed successfully', {
+          tenantId,
+          brandId: options.brandId,
+          csvLength: csvData.length,
+          totalMentions: summary.total_mentions
+        });
+        
+        return csvData;
       }
+
+      this.logger.info('Analytics JSON export completed successfully', {
+        tenantId,
+        brandId: options.brandId,
+        format: 'json',
+        dataPoints: {
+          sentimentTrends: sentimentTrends.length,
+          volumeAnalytics: volumeAnalytics.length,
+          sourcePerformance: sourcePerformance.length
+        },
+        totalMentions: summary.total_mentions
+      });
 
       return exportData;
     } catch (error) {
-      this.logger.error(`Error exporting analytics: ${error.message}`);
+      this.logger.error('Error during analytics export process', {
+        error: error.message,
+        tenantId,
+        brandId: options.brandId,
+        format: options.format,
+        stack: error.stack
+      });
       throw error;
     }
   }

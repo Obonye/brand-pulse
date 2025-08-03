@@ -6,13 +6,21 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../auth/guards/tenant.guard';
 import { CurrentTenant } from '../auth/decorators/current-tenant.decorator';
 import { AnalyticsQueryDto, BrandComparisonQueryDto, BasicAnalyticsQueryDto, ExportAnalyticsQueryDto } from './dto/analytics-query.dto';
+import { LoggerService } from '../../common/logger/logger.service';
 
 @ApiTags('analytics')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, TenantGuard)
 @Controller('analytics')
 export class AnalyticsController {
-  constructor(private readonly analyticsService: AnalyticsService) {}
+  private logger: ReturnType<LoggerService['setContext']>;
+
+  constructor(
+    private readonly analyticsService: AnalyticsService,
+    private readonly loggerService: LoggerService,
+  ) {
+    this.logger = this.loggerService.setContext('AnalyticsController');
+  }
 
   @Get('dashboard')
   @ApiOperation({ summary: 'Get dashboard analytics data (last 7 days)' })
@@ -24,7 +32,27 @@ export class AnalyticsController {
     @CurrentTenant() tenantId: string,
     @Query() query: BasicAnalyticsQueryDto,
   ) {
-    return this.analyticsService.getDashboardData(tenantId, query.brand_id);
+    this.logger.info('GET /analytics/dashboard - Fetch dashboard analytics', {
+      tenantId,
+      brandId: query.brand_id,
+      hasBrandFilter: !!query.brand_id
+    });
+
+    const result = await this.analyticsService.getDashboardData(tenantId, query.brand_id);
+
+    this.logger.info('GET /analytics/dashboard - Dashboard data retrieved successfully', {
+      tenantId,
+      brandId: query.brand_id,
+      totalMentions: result.summary.total_mentions,
+      sentimentScore: result.summary.overall_sentiment_score,
+      dataPoints: {
+        sentimentTrends: result.sentiment_trends.length,
+        volumeAnalytics: result.volume_analytics.length,
+        sourcePerformance: result.source_performance.length
+      }
+    });
+
+    return result;
   }
 
   @Get('summary')
@@ -192,6 +220,20 @@ export class AnalyticsController {
     @Res() res: Response,
   ) {
     const format = query.format || 'csv';
+    const timestamp = new Date().toISOString().split('T')[0];
+    const filename = `analytics-${timestamp}.${format}`;
+
+    this.logger.info('GET /analytics/export - Export analytics data request', {
+      tenantId,
+      brandId: query.brand_id,
+      format,
+      filename,
+      dateRange: {
+        from: query.date_from || 'default',
+        to: query.date_to || 'default'
+      }
+    });
+
     const exportData = await this.analyticsService.exportAnalytics(tenantId, {
       brandId: query.brand_id,
       dateFrom: query.date_from,
@@ -199,14 +241,25 @@ export class AnalyticsController {
       format,
     });
 
-    const timestamp = new Date().toISOString().split('T')[0];
-    const filename = `analytics-${timestamp}.${format}`;
-
     if (format === 'csv') {
+      this.logger.info('GET /analytics/export - CSV export completed successfully', {
+        tenantId,
+        brandId: query.brand_id,
+        filename,
+        fileSize: typeof exportData === 'string' ? exportData.length : 0
+      });
+      
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       res.send(exportData);
     } else {
+      this.logger.info('GET /analytics/export - JSON export completed successfully', {
+        tenantId,
+        brandId: query.brand_id,
+        filename,
+        recordCount: typeof exportData === 'object' && exportData ? Object.keys(exportData).length : 0
+      });
+      
       res.setHeader('Content-Type', 'application/json');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       res.json(exportData);

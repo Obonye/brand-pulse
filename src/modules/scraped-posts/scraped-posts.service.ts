@@ -1,12 +1,18 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { SupabaseService } from '../shared/supabase/supabase.service';
 import { CreateScrapedPostData, ScrapedPost } from './entities/scraped-post.entity';
+import { LoggerService } from '../../common/logger/logger.service';
 
 @Injectable()
 export class ScrapedPostsService {
-  private readonly logger = new Logger(ScrapedPostsService.name);
+  private logger: ReturnType<LoggerService['setContext']>;
 
-  constructor(private readonly supabaseService: SupabaseService) {}
+  constructor(
+    private readonly supabaseService: SupabaseService,
+    private readonly loggerService: LoggerService,
+  ) {
+    this.logger = this.loggerService.setContext('ScrapedPostsService');
+  }
 
   async createScrapedPost(postData: CreateScrapedPostData): Promise<ScrapedPost | null> {
     try {
@@ -55,7 +61,16 @@ export class ScrapedPostsService {
     tenantId: string,
     brandId: string
   ): Promise<ScrapedPost[]> {
+    this.logger.info('Starting Instagram posts processing', {
+      tenantId,
+      brandId,
+      totalPosts: postsData.length,
+      sourceType: 'instagram'
+    });
+
     const processedPosts: ScrapedPost[] = [];
+    let successCount = 0;
+    let failedCount = 0;
 
     for (const postData of postsData) {
       try {
@@ -64,14 +79,52 @@ export class ScrapedPostsService {
           const created = await this.upsertScrapedPost(scrapedPost);
           if (created) {
             processedPosts.push(created);
+            successCount++;
+            
+            this.logger.debug('Instagram post processed successfully', {
+              tenantId,
+              brandId,
+              sourcePostId: scrapedPost.source_post_id,
+              postType: scrapedPost.post_type,
+              likesCount: scrapedPost.likes_count,
+              commentsCount: scrapedPost.comments_count
+            });
+          } else {
+            failedCount++;
+            this.logger.warn('Failed to upsert Instagram post', {
+              tenantId,
+              brandId,
+              sourcePostId: scrapedPost.source_post_id
+            });
           }
+        } else {
+          failedCount++;
+          this.logger.warn('Failed to transform Instagram post data', {
+            tenantId,
+            brandId,
+            postDataKeys: Object.keys(postData || {})
+          });
         }
       } catch (error) {
-        this.logger.error(`Failed to process Instagram post: ${error.message}`);
+        failedCount++;
+        this.logger.error('Error processing Instagram post', {
+          error: error.message,
+          tenantId,
+          brandId,
+          postDataId: postData?.id || postData?.shortCode
+        });
       }
     }
 
-    this.logger.log(`Processed ${processedPosts.length} Instagram posts for brand ${brandId}`);
+    this.logger.info('Instagram posts processing completed', {
+      tenantId,
+      brandId,
+      totalPosts: postsData.length,
+      successfullyProcessed: successCount,
+      failed: failedCount,
+      successRate: postsData.length > 0 ? Math.round((successCount / postsData.length) * 100) : 0
+    });
+
     return processedPosts;
   }
 
@@ -205,6 +258,20 @@ export class ScrapedPostsService {
       end_date?: string;
     }
   ): Promise<{ data: ScrapedPost[]; total: number }> {
+    const limit = query.limit || 20;
+    const offset = query.offset || 0;
+
+    this.logger.info('Fetching scraped posts with filters', {
+      tenantId,
+      filters: {
+        brandId: query.brand_id,
+        sourceType: query.source_type,
+        postType: query.post_type,
+        hasDateRange: !!(query.start_date || query.end_date)
+      },
+      pagination: { limit, offset }
+    });
+
     try {
       let supabaseQuery = this.supabaseService.adminClient
         .from('scraped_posts')
@@ -233,9 +300,6 @@ export class ScrapedPostsService {
       }
 
       // Apply pagination and ordering
-      const limit = query.limit || 20;
-      const offset = query.offset || 0;
-
       supabaseQuery = supabaseQuery
         .order('published_at', { ascending: false })
         .range(offset, offset + limit - 1);
@@ -243,7 +307,11 @@ export class ScrapedPostsService {
       const { data, error, count } = await supabaseQuery;
 
       if (error) {
-        this.logger.error(`Failed to get scraped posts: ${error.message}`);
+        this.logger.error('Failed to fetch scraped posts from database', {
+          error: error.message,
+          tenantId,
+          filters: query
+        });
         return { data: [], total: 0 };
       }
 
@@ -254,12 +322,24 @@ export class ScrapedPostsService {
         brands: undefined
       }));
 
+      this.logger.info('Scraped posts retrieved successfully', {
+        tenantId,
+        totalRecords: count || 0,
+        returnedRecords: transformedData.length,
+        pagination: { limit, offset },
+        hasFilters: !!(query.brand_id || query.source_type || query.post_type || query.start_date || query.end_date)
+      });
+
       return { 
         data: transformedData, 
         total: count || 0 
       };
     } catch (error) {
-      this.logger.error(`Error getting scraped posts: ${error.message}`);
+      this.logger.error('Error in getScrapedPosts method', {
+        error: error.message,
+        tenantId,
+        query
+      });
       return { data: [], total: 0 };
     }
   }
