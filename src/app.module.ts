@@ -12,9 +12,12 @@ import { ScrapersModule } from './scrapers/scrapers.module';
 import { TenantsModule } from './tenants/tenants.module';
 import { SharedModule } from './shared/shared.module';
 import { ScraperJobsModule } from './modules/scraper-jobs/scraper-jobs.module';
+import { ScrapedPostsModule } from './modules/scraped-posts/scraped-posts.module';
 import { SentimentModule } from './modules/sentiment/sentiment.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { MentionsModule } from './modules/mentions/mentions.module';
+import { IndustriesModule } from './modules/industries/industries.module';
+import { AITaggingModule } from './modules/ai-tagging/ai-tagging.module';
 import { LoggerModule } from './common/logger/logger.module';
 
 @Module({
@@ -54,9 +57,12 @@ import { LoggerModule } from './common/logger/logger.module';
     TenantsModule,
     SharedModule,
     ScraperJobsModule,
+    ScrapedPostsModule,
     SentimentModule,
     AnalyticsModule,
-    MentionsModule
+    MentionsModule,
+    IndustriesModule,
+    AITaggingModule
   ],
   controllers: [AppController],
   providers: [AppService],

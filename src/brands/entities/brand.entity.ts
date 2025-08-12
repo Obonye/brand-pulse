@@ -8,6 +8,7 @@ export interface Brand {
     keywords: string[];
     competitor_brands: string[];
     location?: string;
+    industry_id?: string;
     is_active: boolean;
     created_at: string;
     updated_at: string;

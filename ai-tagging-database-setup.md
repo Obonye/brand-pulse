@@ -235,7 +235,7 @@ CREATE INDEX idx_topic_definitions_category ON topic_definitions(tenant_id, cate
 -- Create mention tags table (main tagging results)
 CREATE TABLE mention_tags (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  mention_id UUID NOT NULL REFERENCES scraped_posts(id) ON DELETE CASCADE,
+  mention_id UUID NOT NULL REFERENCES scraped_mentions(id) ON DELETE CASCADE,
   tenant_id UUID NOT NULL REFERENCES tenants(id),
   category_id UUID NOT NULL REFERENCES tag_categories(id),
   intent_id UUID NOT NULL REFERENCES tag_intents(id),
@@ -263,7 +263,7 @@ CREATE INDEX idx_mention_tags_created_date ON mention_tags(tenant_id, DATE(creat
 -- Create mention topics table (many-to-many for topics)
 CREATE TABLE mention_topics (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  mention_id UUID NOT NULL REFERENCES scraped_posts(id) ON DELETE CASCADE,
+  mention_id UUID NOT NULL REFERENCES scraped_mentions(id) ON DELETE CASCADE,
   topic TEXT NOT NULL,
   confidence DECIMAL(3,2) CHECK (confidence BETWEEN 0 AND 1),
   created_at TIMESTAMP DEFAULT NOW(),
@@ -366,7 +366,7 @@ tenants
 ├── topic_definitions.tenant_id
 └── mention_tags.tenant_id
 
-scraped_posts (existing)
+scraped_mentions (existing)
 ├── mention_tags.mention_id
 └── mention_topics.mention_id
 

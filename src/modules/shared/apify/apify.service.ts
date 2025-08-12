@@ -87,6 +87,8 @@ export class ApifyService {
     booking_com: 'voyager/booking-reviews-scraper',
     news_sites: 'apify/web-scraper',
     youtube: 'bernardo/youtube-scraper',
+    tiktok: 'clockworks/tiktok-scraper', // Comprehensive TikTok scraper for profiles, hashtags, posts
+    tiktok_comments: 'clockworks/tiktok-comments-scraper', // Separate actor for TikTok comments
   };
 
   constructor(private configService: ConfigService) {
@@ -398,6 +400,62 @@ export class ApifyService {
           searchType: 'video',
         };
 
+      case 'tiktok':
+        const tiktokInput: any = {
+          commentsPerPost: Math.min(config.comments_per_post || 100, 100),
+          excludePinnedPosts: config.exclude_pinned_posts || false,
+          maxRepliesPerComment: Math.min(config.max_replies_per_comment || 0, 10),
+          resultsPerPage: Math.min(config.results_per_page || 5, MAX_RESULTS_LIMIT),
+          profileScrapeSections: config.profile_scrape_sections || ["videos"],
+          profileSorting: config.profile_sorting || "latest",
+        };
+
+        // Handle different search types
+        if (config.profiles && config.profiles.length > 0) {
+          // Search by TikTok usernames/profiles
+          tiktokInput.profiles = config.profiles;
+        } else if (config.hashtags && config.hashtags.length > 0) {
+          // Search by hashtags
+          tiktokInput.hashtags = config.hashtags;
+        } else if (config.videos && config.videos.length > 0) {
+          // Search specific video URLs
+          tiktokInput.videos = config.videos;
+        } else if (config.search_query) {
+          // Generic search query
+          tiktokInput.searchQuery = config.search_query;
+        } else {
+          throw new BadRequestException('TikTok scraper requires either profiles, hashtags, videos, or search_query in config');
+        }
+
+        return tiktokInput;
+
+      case 'tiktok_comments':
+        const tiktokCommentsInput: any = {
+          commentsPerPost: Math.min(config.comments_per_post || 100, 200),
+          excludePinnedPosts: config.exclude_pinned_posts || false,
+          maxRepliesPerComment: Math.min(config.max_replies_per_comment || 0, 10),
+          resultsPerPage: Math.min(config.results_per_page || 5, MAX_RESULTS_LIMIT),
+          profileScrapeSections: config.profile_scrape_sections || ["videos"],
+          profileSorting: config.profile_sorting || "latest",
+        };
+
+        if (config.video_urls && config.video_urls.length > 0) {
+          // Direct video URLs for comments scraping
+          tiktokCommentsInput.videoUrls = config.video_urls;
+        } else if (config.startUrls && config.startUrls.length > 0) {
+          // Alternative format - extract URLs from startUrls
+          tiktokCommentsInput.videoUrls = config.startUrls.map((item: any) => 
+            typeof item === 'string' ? item : item.url
+          );
+        } else if (config.profiles && config.profiles.length > 0) {
+          // Profile-based scraping - scrape comments from user's videos
+          tiktokCommentsInput.profiles = config.profiles;
+        } else {
+          throw new BadRequestException('TikTok comments scraper requires either video_urls, startUrls (TikTok video URLs), or profiles in config');
+        }
+
+        return tiktokCommentsInput;
+
       default:
         return config;
     }
@@ -419,6 +477,8 @@ export class ApifyService {
       booking_com: 1024,
       news_sites: 1024,
       youtube: 1024,
+      tiktok: 1024,
+      tiktok_comments: 1024,
     };
     
     return memoryMap[sourceType] || 1024;
@@ -440,6 +500,8 @@ export class ApifyService {
       booking_com: 3600,
       news_sites: 1800,
       youtube: 1800,
+      tiktok: 3600,         // 1 hour
+      tiktok_comments: 3600,
     };
     
     return timeoutMap[sourceType] || 3600;

@@ -61,6 +61,7 @@ export class BrandsService {
           keywords: createBrandDto.keywords || [],
           competitor_brands: createBrandDto.competitor_brands || [],
           location: createBrandDto.location || null,
+          industry_id: createBrandDto.industry_id || null,
           is_active: true
         })
         .select()
@@ -100,7 +101,10 @@ export class BrandsService {
     try {
       const { data, error } = await this.supabaseService.adminClient
         .from('brands')
-        .select('*')
+        .select(`
+          *,
+          industries(id, name, display_name)
+        `)
         .eq('tenant_id', tenantId)
         .eq('is_active', true)
         .order('created_at', { ascending: false });
@@ -127,7 +131,10 @@ export class BrandsService {
     try {
       const { data, error } = await this.supabaseService.adminClient
         .from('brands')
-        .select('*')
+        .select(`
+          *,
+          industries(id, name, display_name)
+        `)
         .eq('id', id)
         .eq('tenant_id', tenantId)
         .eq('is_active', true)
@@ -187,6 +194,7 @@ export class BrandsService {
       if (updateBrandDto.keywords !== undefined) updateData.keywords = updateBrandDto.keywords || [];
       if (updateBrandDto.competitor_brands !== undefined) updateData.competitor_brands = updateBrandDto.competitor_brands || [];
       if (updateBrandDto.location !== undefined) updateData.location = updateBrandDto.location || null;
+      if (updateBrandDto.industry_id !== undefined) updateData.industry_id = updateBrandDto.industry_id || null;
 
       const { data, error } = await this.supabaseService.adminClient
         .from('brands')

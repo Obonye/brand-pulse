@@ -2,6 +2,7 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { SupabaseService } from '../shared/supabase/supabase.service';
 import { ApifyService, ApifyDatasetItem } from '../shared/apify/apify.service';
 import { SentimentService } from '../sentiment/sentiment.service';
+import { AITaggingService } from '../ai-tagging/ai-tagging.service';
 import { ScrapedMention } from './entities/mention.entity';
 import { LoggerService } from '../../common/logger/logger.service';
 
@@ -13,6 +14,7 @@ export class MentionsService {
     private supabaseService: SupabaseService,
     private apifyService: ApifyService,
     private sentimentService: SentimentService,
+    private aiTaggingService: AITaggingService,
     private loggerService: LoggerService,
   ) {
     this.logger = this.loggerService.setContext('MentionsService');
@@ -79,14 +81,24 @@ export class MentionsService {
         tenantId: scraperRun.tenant_id
       });
 
-      // Trigger sentiment analysis for newly inserted mentions
+      // Trigger sentiment analysis and AI tagging for newly inserted mentions
       if (insertedMentions.length > 0) {
-        this.logger.info('Triggering sentiment analysis', {
+        const brandName = scraperRun.scraper_jobs?.brands?.name;
+        const brandId = scraperRun.scraper_jobs?.brand_id;
+        
+        this.logger.info('Triggering sentiment analysis and AI tagging', {
           mentionsCount: insertedMentions.length,
-          brandName: scraperRun.scraper_jobs?.brands?.name,
-          runId: scraperRun.id
+          brandName,
+          brandId,
+          runId: scraperRun.id,
+          tenantId: scraperRun.tenant_id
         });
-        this.triggerSentimentAnalysis(insertedMentions, scraperRun.scraper_jobs?.brands?.name);
+        
+        // Trigger sentiment analysis
+        this.triggerSentimentAnalysis(insertedMentions, brandName);
+        
+        // Trigger AI tagging
+        this.triggerAITagging(insertedMentions, brandId, scraperRun.tenant_id);
       }
 
       // Update scraper run with processing stats
@@ -110,23 +122,46 @@ export class MentionsService {
     const job = scraperRun.scraper_jobs;
     
     return apifyData.map((item, index) => {
-      // Generate a source_id if not provided - use Instagram comment ID for comments
-      const sourceId = item.id || item.reviewId || item.postId || 
-                      this.generateSourceId(item.url || item.postUrl || item.title || '', index);
+      // Generate a source_id based on platform - use TikTok comment ID (cid) for TikTok comments
+      let sourceId: string;
+      if (job.source_type === 'tiktok_comments' || job.source_type === 'tiktok') {
+        sourceId = item.cid || item.id || this.generateSourceId(item.videoWebUrl || item.url || '', index);
+      } else {
+        sourceId = item.id || item.reviewId || item.postId || 
+                   this.generateSourceId(item.url || item.postUrl || item.title || '', index);
+      }
+
+      // Map fields based on platform
+      let sourceUrl: string;
+      let author: string;
+      let authorUrl: string;
+      let publishedAt: string | null;
+
+      if (job.source_type === 'tiktok_comments' || job.source_type === 'tiktok') {
+        sourceUrl = item.videoWebUrl || item.url;
+        author = item.uniqueId || item.username;
+        authorUrl = item.avatarThumbnail;
+        publishedAt = this.parseDate(item.createTimeISO || item.createTime || item.timestamp || item.publishedAt || item.createdAt || item.date);
+      } else {
+        sourceUrl = item.postUrl || item.url;
+        author = item.ownerUsername || item.author || item.reviewer || item.username;
+        authorUrl = item.ownerProfilePicUrl || item.authorUrl || item.profileUrl;
+        publishedAt = this.parseDate(item.timestamp || item.publishedAt || item.createdAt || item.date);
+      }
 
       return {
         tenant_id: scraperRun.tenant_id,
         brand_id: job.brand_id,
         job_run_id: scraperRun.id,
         source_type: job.source_type,
-        source_url: item.postUrl || item.url, // Use postUrl for Instagram comments
+        source_url: sourceUrl,
         source_id: sourceId,
         title: item.title || item.name,
         content: item.text || item.reviewText || item.content || item.description || '',
-        author: item.ownerUsername || item.author || item.reviewer || item.username,
-        author_url: item.ownerProfilePicUrl || item.authorUrl || item.profileUrl,
+        author: author,
+        author_url: authorUrl,
         author_followers: item.followers || item.followerCount,
-        published_at: this.parseDate(item.timestamp || item.publishedAt || item.createdAt || item.date) || undefined,
+        published_at: publishedAt || undefined,
         language: item.language || 'en',
         metadata: this.buildMetadata(item, job.source_type),
       };
@@ -193,6 +228,28 @@ export class MentionsService {
           review_response: item.response,
         };
 
+      case 'tiktok':
+      case 'tiktok_comments':
+        return {
+          ...baseMetadata,
+          // TikTok comments specific fields
+          video_web_url: item.videoWebUrl,
+          comment_id: item.cid,
+          create_time: item.createTime,
+          create_time_iso: item.createTimeISO,
+          digg_count: item.diggCount || 0, // likes on comment
+          liked_by_author: item.likedByAuthor || false,
+          pinned_by_author: item.pinnedByAuthor || false,
+          replies_to_id: item.repliesToId,
+          reply_comment_total: item.replyCommentTotal || 0,
+          user_id: item.uid,
+          unique_id: item.uniqueId, // username
+          avatar_thumbnail: item.avatarThumbnail,
+          mentions: item.mentions || [],
+          detailed_mentions: item.detailedMentions || [],
+          input: item.input, // original input (username/hashtag searched)
+        };
+
       default:
         return baseMetadata;
     }
@@ -252,15 +309,17 @@ export class MentionsService {
       setImmediate(async () => {
         try {
           await this.sentimentService.batchAnalyzeMentions(mentions, brandName);
-          this.logger.info('Sentiment analysis completed successfully', {
+          this.logger.info('✅ SENTIMENT ANALYSIS COMPLETE', {
             mentionsCount: mentions.length,
-            brandName
+            brandName,
+            status: 'completed'
           });
         } catch (error) {
-          this.logger.error('Sentiment analysis failed', {
+          this.logger.error('❌ SENTIMENT ANALYSIS FAILED', {
             error: error.message,
             mentionsCount: mentions.length,
-            brandName
+            brandName,
+            status: 'failed'
           });
         }
       });
@@ -269,6 +328,76 @@ export class MentionsService {
         error: error.message,
         mentionsCount: mentions.length,
         brandName
+      });
+    }
+  }
+
+  /**
+   * Trigger AI tagging for newly inserted mentions
+   */
+  private async triggerAITagging(mentions: ScrapedMention[], brandId: string, tenantId: string): Promise<void> {
+    try {
+      this.logger.debug('Starting asynchronous AI tagging', {
+        mentionsCount: mentions.length,
+        brandId,
+        tenantId
+      });
+      
+      // Run AI tagging asynchronously to avoid blocking the webhook response
+      setImmediate(async () => {
+        try {
+          const mentionIds = mentions.map(mention => mention.id);
+          
+          // Get brand details to determine industry context
+          const { data: brand } = await this.supabaseService.adminClient
+            .from('brands')
+            .select('id, name, industry_id')
+            .eq('id', brandId)
+            .eq('tenant_id', tenantId)
+            .single();
+
+          const industryId = brand?.industry_id;
+
+          this.logger.info('Starting bulk AI tagging process', {
+            mentionsCount: mentionIds.length,
+            brandName: brand?.name,
+            industryId,
+            tenantId
+          });
+
+          const result = await this.aiTaggingService.bulkTagMentions(
+            mentionIds,
+            tenantId,
+            industryId,
+            false // don't force retag
+          );
+
+          this.logger.info('🏷️ AI TAGGING COMPLETE', {
+            mentionsCount: mentionIds.length,
+            successful: result.success,
+            failed: result.failed,
+            successRate: mentionIds.length > 0 ? Math.round((result.success / mentionIds.length) * 100) : 0,
+            brandName: brand?.name,
+            tenantId,
+            status: 'completed'
+          });
+        } catch (error) {
+          this.logger.error('❌ AI TAGGING FAILED', {
+            error: error.message,
+            mentionsCount: mentions.length,
+            brandId,
+            tenantId,
+            stack: error.stack,
+            status: 'failed'
+          });
+        }
+      });
+    } catch (error) {
+      this.logger.warn('Failed to trigger AI tagging', {
+        error: error.message,
+        mentionsCount: mentions.length,
+        brandId,
+        tenantId
       });
     }
   }

@@ -12,6 +12,8 @@ export enum SourceType {
   NEWS_SITES = 'news_sites',
   FORUMS = 'forums',
   YOUTUBE = 'youtube',
+  TIKTOK = 'tiktok',
+  TIKTOK_COMMENTS = 'tiktok_comments',
 }
 
 export class CreateScraperJobDto {
@@ -40,6 +42,8 @@ export class CreateScraperJobDto {
     - instagram: usernames (["username1", "username2"]), hashtags (["hashtag1"]), or locations (["location_id"])
     - booking_com: startUrls with hotel URLs or search_query
     - facebook: page_urls array
+    - tiktok: profiles (["username1", "username2"]), hashtags (["hashtag1"]), videos (video URLs), or search_query. Optional: comments_per_post, results_per_page, profile_sorting ("latest"/"oldest"/"popular")
+    - tiktok_comments: video_urls (["https://tiktok.com/@user/video/123"]), startUrls, or profiles (["username1"]). Optional: comments_per_post, exclude_pinned_posts, max_replies_per_comment, results_per_page, profile_scrape_sections, profile_sorting
     - All: max_results to limit results`
   })
   @IsObject()
