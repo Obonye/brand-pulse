@@ -26,4 +26,26 @@ export interface ScrapedMention {
     id: string;
     job_id: string;
   };
+  // AI Tagging Relations
+  mention_tags?: {
+    id: string;
+    category_id: string;
+    intent_id: string;
+    priority: 'low' | 'medium' | 'high';
+    urgency_score: number;
+    confidence: number;
+    tag_categories: {
+      name: string;
+      display_name: string;
+      color_hex: string;
+    };
+    tag_intents: {
+      name: string;
+      display_name: string;
+    };
+  }[];
+  mention_topics?: {
+    topic: string;
+    confidence: number;
+  }[];
 }

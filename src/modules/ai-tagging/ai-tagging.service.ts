@@ -76,7 +76,7 @@ export class AITaggingService {
       const prompt = this.buildTaggingPrompt(mention, industryContext, categories, intents);
 
       const response = await this.openai.chat.completions.create({
-        model: 'gpt-4',
+        model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
@@ -132,7 +132,7 @@ export class AITaggingService {
         priority: taggingResult.priority,
         urgency_score: taggingResult.urgency_score,
         confidence: taggingResult.confidence,
-        ai_model: 'gpt-4',
+        ai_model: 'gpt-4o-mini',
         ai_provider: 'openai'
       };
 

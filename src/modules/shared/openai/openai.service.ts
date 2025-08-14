@@ -38,11 +38,11 @@ export class OpenAIService {
       const prompt = this.buildSentimentPrompt(text, context);
       
       const response = await this.openai.chat.completions.create({
-        model: 'gpt-4.1',
+        model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
-            content: 'You are a sentiment analysis expert. Analyze the sentiment of social media mentions and reviews with high accuracy.'
+            content: 'You are a sentiment analysis expert. Analyze the sentiment of social media mentions and reviews with high accuracy. Always respond with valid JSON only.'
           },
           {
             role: 'user',
@@ -158,7 +158,7 @@ Text to analyze: "${text}"`;
 
     try {
       const response = await this.openai.chat.completions.create({
-        model: 'gpt-3.5-turbo',
+        model: 'gpt-4o-mini',
         messages: [{ role: 'user', content: 'Health check' }],
         max_tokens: 1,
       });

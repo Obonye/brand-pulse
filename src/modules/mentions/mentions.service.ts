@@ -478,7 +478,7 @@ export class MentionsService {
   }
 
   /**
-   * Get mentions for a tenant
+   * Get mentions for a tenant with AI tagging data
    */
   async findAll(tenantId: string, limit = 100, offset = 0): Promise<ScrapedMention[]> {
     try {
@@ -489,6 +489,27 @@ export class MentionsService {
           brands (
             id,
             name
+          ),
+          mention_tags (
+            id,
+            category_id,
+            intent_id,
+            priority,
+            urgency_score,
+            confidence,
+            tag_categories (
+              name,
+              display_name,
+              color_hex
+            ),
+            tag_intents (
+              name,
+              display_name
+            )
+          ),
+          mention_topics (
+            topic,
+            confidence
           )
         `)
         .eq('tenant_id', tenantId)
@@ -506,7 +527,7 @@ export class MentionsService {
   }
 
   /**
-   * Get mentions data for table display with joins
+   * Get mentions data for table display with joins including AI tagging
    */
   async getTableData(
     tenantId: string,
@@ -519,6 +540,11 @@ export class MentionsService {
       search?: string;
       start_date?: string;
       end_date?: string;
+      // AI Tagging filters
+      category?: string;
+      intent?: string;
+      priority?: 'low' | 'medium' | 'high';
+      topic?: string;
     } = {}
   ): Promise<{ data: any[]; total: number; page: number; limit: number }> {
     try {
@@ -531,11 +557,15 @@ export class MentionsService {
         search,
         start_date,
         end_date,
+        category,
+        intent,
+        priority,
+        topic,
       } = options;
 
       const offset = (page - 1) * limit;
 
-      // Build query with joins
+      // Build query with joins including AI tagging data
       let query = this.supabaseService.adminClient
         .from('scraped_mentions')
         .select(`
@@ -550,8 +580,27 @@ export class MentionsService {
             id,
             name
           ),
-          sentiment_analysis!inner (
+          sentiment_analysis!left (
             sentiment,
+            confidence
+          ),
+          mention_tags!left (
+            id,
+            priority,
+            urgency_score,
+            confidence,
+            tag_categories (
+              name,
+              display_name,
+              color_hex
+            ),
+            tag_intents (
+              name,
+              display_name
+            )
+          ),
+          mention_topics!left (
+            topic,
             confidence
           )
         `, { count: 'exact' })
@@ -584,6 +633,27 @@ export class MentionsService {
           .eq('sentiment_analysis.sentiment', sentiment);
       }
 
+      // Apply AI tagging filters
+      if (category) {
+        query = query.not('mention_tags', 'is', null)
+          .eq('mention_tags.tag_categories.name', category);
+      }
+
+      if (intent) {
+        query = query.not('mention_tags', 'is', null)
+          .eq('mention_tags.tag_intents.name', intent);
+      }
+
+      if (priority) {
+        query = query.not('mention_tags', 'is', null)
+          .eq('mention_tags.priority', priority);
+      }
+
+      if (topic) {
+        query = query.not('mention_topics', 'is', null)
+          .eq('mention_topics.topic', topic);
+      }
+
       // Add ordering and pagination
       query = query
         .order('published_at', { ascending: false, nullsFirst: false })
@@ -596,13 +666,13 @@ export class MentionsService {
         this.logger.error('Failed to fetch mentions table data', {
           error: error.message,
           tenantId,
-          filters: { brand_id, source_type, sentiment, search, start_date, end_date },
+          filters: { brand_id, source_type, sentiment, search, start_date, end_date, category, intent, priority, topic },
           pagination: { page, limit, offset }
         });
         throw new BadRequestException(`Failed to fetch mentions table data: ${error.message}`);
       }
 
-      // Transform data for table display
+      // Transform data for table display including AI tagging
       const tableData = (data || []).map((mention: any) => ({
         id: mention.id,
         source: mention.source_type,
@@ -614,6 +684,30 @@ export class MentionsService {
         sentiment_score: mention.sentiment_analysis?.[0]?.confidence || null,
         author: mention.author,
         source_url: mention.source_url,
+        
+        // AI Tagging data
+        tags: mention.mention_tags?.map((tag: any) => ({
+          category: tag.tag_categories?.name,
+          category_display: tag.tag_categories?.display_name,
+          category_color: tag.tag_categories?.color_hex,
+          intent: tag.tag_intents?.name,
+          intent_display: tag.tag_intents?.display_name,
+          priority: tag.priority,
+          urgency_score: tag.urgency_score,
+          confidence: tag.confidence,
+        })) || [],
+        
+        topics: mention.mention_topics?.map((topic: any) => ({
+          name: topic.topic,
+          confidence: topic.confidence,
+        })) || [],
+        
+        // Convenience fields for easy filtering/display
+        primary_category: mention.mention_tags?.[0]?.tag_categories?.name || null,
+        primary_intent: mention.mention_tags?.[0]?.tag_intents?.name || null,
+        priority_level: mention.mention_tags?.[0]?.priority || null,
+        urgency_score: mention.mention_tags?.[0]?.urgency_score || null,
+        top_topics: mention.mention_topics?.slice(0, 3).map((t: any) => t.topic) || [],
       }));
 
       return {
