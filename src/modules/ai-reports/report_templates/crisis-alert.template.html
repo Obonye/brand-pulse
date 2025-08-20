@@ -1,0 +1,316 @@
+<!-- Crisis Alert Report Template -->
+<div class="report-section">
+    <h2 class="section-title">🚨 Crisis Alert Overview</h2>
+    <div class="section-content">
+        <div class="metrics-grid">
+            <div class="metric-card priority-high">
+                <div class="metric-value">{{criticalIssuesCount}}</div>
+                <div class="metric-label">Critical Issues</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value">{{avgUrgencyScore}}</div>
+                <div class="metric-label">Avg Urgency Score</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value">{{estimatedReachImpact}}</div>
+                <div class="metric-label">Est. Reach Impact</div>
+            </div>
+            <div class="metric-card {{escalationRiskClass}}">
+                <div class="metric-value">{{escalationRisk}}</div>
+                <div class="metric-label">Escalation Risk</div>
+            </div>
+        </div>
+
+        <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h3 style="color: #dc2626; margin-bottom: 10px; font-size: 18px;">⚠️ Crisis Status: {{crisisLevel}}</h3>
+            <p><strong>{{aiGeneratedCrisisOverview}}</strong></p>
+        </div>
+    </div>
+</div>
+
+{{#if immediateThreatsMentions.length}}
+<div class="report-section">
+    <h2 class="section-title">🔥 Immediate Threats Requiring Action</h2>
+    <div class="section-content">
+        <div style="background: #fef2f2; border-left: 4px solid #dc2626; padding: 16px; margin-bottom: 20px;">
+            <strong>Response Required Within: {{responseTimeframe}}</strong>
+        </div>
+        
+        {{#each immediateThreatsMentions}}
+        <div class="mention-sample priority-high" style="margin-bottom: 20px;">
+            <div style="display: flex; justify-content: between; align-items: start; margin-bottom: 12px;">
+                <div style="flex: 1;">
+                    <strong>THREAT LEVEL {{this.threatLevel}}</strong>
+                    <br><small>Urgency: {{this.max_urgency_score}} • Confidence: {{this.sentiment_confidence}}</small>
+                </div>
+                <div style="text-align: right; background: #dc2626; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px;">
+                    {{this.estimatedReach}} potential reach
+                </div>
+            </div>
+            
+            <div style="font-size: 16px; margin-bottom: 12px;">
+                "{{this.content}}"
+            </div>
+            
+            <div class="mention-meta">
+                <strong>Source:</strong> {{this.source_type}} • 
+                <strong>Author:</strong> {{this.author}} ({{this.author_followers}} followers) • 
+                <strong>Published:</strong> {{this.published_at}}
+            </div>
+            
+            <div style="margin-top: 12px; background: #fff1f2; padding: 12px; border-radius: 6px;">
+                <strong>Recommended Action:</strong> {{this.recommendedAction}}
+                <br><strong>Response Priority:</strong> {{this.responsePriority}}
+                <br><strong>Escalation Path:</strong> {{this.escalationPath}}
+            </div>
+        </div>
+        {{/each}}
+    </div>
+</div>
+{{/if}}
+
+<div class="report-section">
+    <h2 class="section-title">📊 Crisis Severity Analysis</h2>
+    <div class="section-content">
+        <div class="chart-placeholder">
+            <strong>Crisis Severity Timeline</strong><br>
+            <small>Urgency and volume trends over time</small>
+        </div>
+        
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-value negative">{{severityMetrics.currentHour}}</div>
+                <div class="metric-label">Last Hour</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value">{{severityMetrics.last6Hours}}</div>
+                <div class="metric-label">Last 6 Hours</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value">{{severityMetrics.last24Hours}}</div>
+                <div class="metric-label">Last 24 Hours</div>
+            </div>
+            <div class="metric-card {{severityMetrics.trendClass}}">
+                <div class="metric-value">{{severityMetrics.trendDirection}}</div>
+                <div class="metric-label">Trend Direction</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="report-section">
+    <h2 class="section-title">🎯 Response Time Recommendations</h2>
+    <div class="section-content">
+        {{#each responseTimeRecommendations}}
+        <div class="mention-sample" style="border-left-color: {{this.priorityColor}}; margin-bottom: 16px;">
+            <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 8px;">
+                <strong>{{this.issueType}}</strong>
+                <div style="background: {{this.priorityColor}}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px;">
+                    {{this.responseWindow}}
+                </div>
+            </div>
+            <div>{{this.description}}</div>
+            <div style="margin-top: 8px; font-size: 12px; color: #6b7280;">
+                <strong>Why this timeline:</strong> {{this.reasoning}}
+            </div>
+        </div>
+        {{/each}}
+    </div>
+</div>
+
+<div class="report-section">
+    <h2 class="section-title">🏢 Stakeholder Notification Priorities</h2>
+    <div class="section-content">
+        <div>{{aiGeneratedStakeholderAnalysis}}</div>
+        
+        {{#each stakeholderNotifications}}
+        <div style="margin-bottom: 20px;">
+            <h3 style="font-size: 16px; margin-bottom: 10px; color: {{this.priorityColor}};">
+                {{this.stakeholderGroup}} - {{this.notificationLevel}}
+            </h3>
+            <div class="mention-sample" style="border-left-color: {{this.priorityColor}};">
+                <strong>Contact Timeline:</strong> {{this.contactWindow}}
+                <br><strong>Communication Method:</strong> {{this.preferredMethod}}
+                <br><strong>Key Message:</strong> {{this.keyMessage}}
+                <br><strong>Decision Authority:</strong> {{this.decisionAuthority}}
+                
+                {{#if this.contactList.length}}
+                <div style="margin-top: 10px;">
+                    <strong>Primary Contacts:</strong>
+                    <ul style="margin: 5px 0 0 20px; font-size: 12px;">
+                        {{#each this.contactList}}
+                        <li>{{this.name}} - {{this.role}} ({{this.contact}})</li>
+                        {{/each}}
+                    </ul>
+                </div>
+                {{/if}}
+            </div>
+        </div>
+        {{/each}}
+    </div>
+</div>
+
+<div class="report-section">
+    <h2 class="section-title">📋 Crisis Mitigation Strategies</h2>
+    <div class="section-content">
+        <div>{{aiGeneratedMitigationStrategies}}</div>
+        
+        <h3 style="margin: 20px 0 10px 0; font-size: 16px; color: #dc2626;">🚨 Immediate Actions (0-2 hours)</h3>
+        <ul class="insights-list">
+            {{#each immediateActions}}
+            <li style="border-left-color: #dc2626;">
+                <strong>{{this.action}}</strong>
+                <br>{{this.description}}
+                <br><small>
+                    <strong>Owner:</strong> {{this.owner}} • 
+                    <strong>Resources needed:</strong> {{this.resourcesNeeded}} • 
+                    <strong>Success metric:</strong> {{this.successMetric}}
+                </small>
+            </li>
+            {{/each}}
+        </ul>
+
+        <h3 style="margin: 20px 0 10px 0; font-size: 16px; color: #f59e0b;">⚡ Short-term Actions (2-24 hours)</h3>
+        <ul class="insights-list">
+            {{#each shortTermActions}}
+            <li style="border-left-color: #f59e0b;">
+                <strong>{{this.action}}</strong>
+                <br>{{this.description}}
+                <br><small>
+                    <strong>Owner:</strong> {{this.owner}} • 
+                    <strong>Dependencies:</strong> {{this.dependencies}} • 
+                    <strong>Success metric:</strong> {{this.successMetric}}
+                </small>
+            </li>
+            {{/each}}
+        </ul>
+
+        <h3 style="margin: 20px 0 10px 0; font-size: 16px; color: #059669;">🛡️ Recovery Actions (24+ hours)</h3>
+        <ul class="insights-list">
+            {{#each recoveryActions}}
+            <li style="border-left-color: #059669;">
+                <strong>{{this.action}}</strong>
+                <br>{{this.description}}
+                <br><small>
+                    <strong>Owner:</strong> {{this.owner}} • 
+                    <strong>Timeline:</strong> {{this.timeline}} • 
+                    <strong>Success metric:</strong> {{this.successMetric}}
+                </small>
+            </li>
+            {{/each}}
+        </ul>
+    </div>
+</div>
+
+{{#if viralRiskMentions.length}}
+<div class="report-section">
+    <h2 class="section-title">📈 Viral Risk Assessment</h2>
+    <div class="section-content">
+        <div style="background: #fffbeb; border: 1px solid #fed7aa; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+            <strong>⚠️ Viral Potential Detected</strong>
+            <br>The following mentions show characteristics that could lead to viral spread if not addressed quickly.
+        </div>
+        
+        {{#each viralRiskMentions}}
+        <div class="mention-sample" style="border-left-color: #f59e0b; margin-bottom: 16px;">
+            <div style="display: flex; justify-content: between; align-items: start; margin-bottom: 12px;">
+                <div>
+                    <strong>VIRAL RISK: {{this.viralRiskScore}}/10</strong>
+                    <br><small>Author influence: {{this.authorInfluence}} • Engagement trend: {{this.engagementTrend}}</small>
+                </div>
+                <div style="text-align: right; font-size: 11px; color: #6b7280;">
+                    {{this.timeToViral}} to potential viral status
+                </div>
+            </div>
+            
+            <div>"{{this.content}}"</div>
+            
+            <div class="mention-meta">
+                {{this.source_type}} • {{this.author}} ({{this.author_followers}} followers) • {{this.currentEngagement}} engagement
+            </div>
+            
+            <div style="margin-top: 10px; background: #fffbeb; padding: 8px; border-radius: 4px; font-size: 12px;">
+                <strong>Risk factors:</strong> {{this.riskFactors}}
+                <br><strong>Containment strategy:</strong> {{this.containmentStrategy}}
+            </div>
+        </div>
+        {{/each}}
+    </div>
+</div>
+{{/if}}
+
+<div class="report-section">
+    <h2 class="section-title">📞 Emergency Response Contacts</h2>
+    <div class="section-content">
+        <div class="metrics-grid">
+            {{#each emergencyContacts}}
+            <div class="metric-card" style="text-align: left;">
+                <div style="font-weight: bold; margin-bottom: 8px;">{{this.role}}</div>
+                <div style="font-size: 12px; margin-bottom: 4px;"><strong>{{this.name}}</strong></div>
+                <div style="font-size: 11px; color: #6b7280;">
+                    📱 {{this.phone}}<br>
+                    📧 {{this.email}}<br>
+                    ⏰ Available: {{this.availability}}
+                </div>
+            </div>
+            {{/each}}
+        </div>
+    </div>
+</div>
+
+<div class="report-section">
+    <h2 class="section-title">📋 Crisis Response Checklist</h2>
+    <div class="section-content">
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px;">
+            <h3 style="margin-bottom: 15px; font-size: 16px;">Immediate Response Checklist</h3>
+            
+            {{#each responseChecklist}}
+            <div style="display: flex; align-items: center; margin-bottom: 12px; padding: 8px; background: white; border-radius: 4px;">
+                <input type="checkbox" style="margin-right: 10px;" {{#if this.isComplete}}checked{{/if}}>
+                <div style="flex: 1;">
+                    <strong>{{this.task}}</strong>
+                    <br><small style="color: #6b7280;">{{this.description}} • Owner: {{this.owner}} • Timeline: {{this.timeline}}</small>
+                </div>
+                <div style="font-size: 11px; color: {{this.priorityColor}}; font-weight: bold;">
+                    {{this.priority}}
+                </div>
+            </div>
+            {{/each}}
+        </div>
+    </div>
+</div>
+
+<div class="report-section">
+    <h2 class="section-title">🔄 Monitoring & Follow-up</h2>
+    <div class="section-content">
+        <div>{{aiGeneratedMonitoringPlan}}</div>
+        
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-value">{{nextMonitoringCheck}}</div>
+                <div class="metric-label">Next Status Check</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value">{{escalationThreshold}}</div>
+                <div class="metric-label">Escalation Threshold</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value">{{reportingFrequency}}</div>
+                <div class="metric-label">Reporting Frequency</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value">{{resolutionTarget}}</div>
+                <div class="metric-label">Resolution Target</div>
+            </div>
+        </div>
+
+        <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 16px; margin-top: 20px;">
+            <strong>🔍 Key Metrics to Monitor:</strong>
+            <ul style="margin: 10px 0 0 20px; font-size: 14px;">
+                {{#each monitoringMetrics}}
+                <li><strong>{{this.metric}}:</strong> {{this.description}} (Target: {{this.target}})</li>
+                {{/each}}
+            </ul>
+        </div>
+    </div>
+</div>

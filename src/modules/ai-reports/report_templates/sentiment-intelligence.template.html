@@ -1,0 +1,210 @@
+<!-- Sentiment Intelligence Report Template -->
+<div class="report-section">
+    <h2 class="section-title">Sentiment Analysis Overview</h2>
+    <div class="section-content">
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-value">{{totalMentions}}</div>
+                <div class="metric-label">Total Analyzed</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value">{{avgSentimentConfidence}}</div>
+                <div class="metric-label">Avg Confidence</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value">{{sentimentShift}}</div>
+                <div class="metric-label">Period Change</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value">{{uniqueAuthors}}</div>
+                <div class="metric-label">Contributors</div>
+            </div>
+        </div>
+
+        <p><strong>{{aiGeneratedSentimentSummary}}</strong></p>
+    </div>
+</div>
+
+<div class="report-section">
+    <h2 class="section-title">Sentiment Distribution Deep Dive</h2>
+    <div class="section-content">
+        <div class="chart-placeholder">
+            <strong>Sentiment Breakdown Chart</strong><br>
+            <small>Interactive sentiment distribution visualization</small>
+        </div>
+        
+        <div class="metrics-grid">
+            <div class="metric-card positive">
+                <div class="metric-value">{{sentimentPositive}}</div>
+                <div class="metric-label">Positive Mentions</div>
+                <small style="display: block; margin-top: 8px;">{{sentimentPositivePercent}}% of total</small>
+            </div>
+            <div class="metric-card negative">
+                <div class="metric-value">{{sentimentNegative}}</div>
+                <div class="metric-label">Negative Mentions</div>
+                <small style="display: block; margin-top: 8px;">{{sentimentNegativePercent}}% of total</small>
+            </div>
+            <div class="metric-card neutral">
+                <div class="metric-value">{{sentimentNeutral}}</div>
+                <div class="metric-label">Neutral Mentions</div>
+                <small style="display: block; margin-top: 8px;">{{sentimentNeutralPercent}}% of total</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="report-section">
+    <h2 class="section-title">Emotional Drivers Analysis</h2>
+    <div class="section-content">
+        <div>{{aiGeneratedEmotionalDrivers}}</div>
+        
+        <h3 style="margin: 20px 0 10px 0; font-size: 16px;">Positive Sentiment Drivers</h3>
+        <ul class="insights-list">
+            {{#each positiveSentimentTopics}}
+            <li style="border-left-color: #059669;">
+                <strong>{{this.topic}}</strong>: {{this.count}} mentions
+                <br><small>Confidence: {{this.avgConfidence}} • Impact: {{this.sentimentImpact}}</small>
+            </li>
+            {{/each}}
+        </ul>
+
+        <h3 style="margin: 20px 0 10px 0; font-size: 16px;">Negative Sentiment Drivers</h3>
+        <ul class="insights-list">
+            {{#each negativeSentimentTopics}}
+            <li style="border-left-color: #dc2626;">
+                <strong>{{this.topic}}</strong>: {{this.count}} mentions
+                <br><small>Confidence: {{this.avgConfidence}} • Impact: {{this.sentimentImpact}}</small>
+            </li>
+            {{/each}}
+        </ul>
+    </div>
+</div>
+
+<div class="report-section">
+    <h2 class="section-title">Sentiment-Topic Correlation Matrix</h2>
+    <div class="section-content">
+        <div class="chart-placeholder">
+            <strong>Topic-Sentiment Heatmap</strong><br>
+            <small>Visual correlation between topics and sentiment scores</small>
+        </div>
+        
+        {{#each sentimentTopicCorrelations}}
+        <div class="metric-card" style="margin-bottom: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <strong>{{this.topic}}</strong>
+                    <br><small>{{this.mentionCount}} mentions</small>
+                </div>
+                <div class="{{this.sentimentClass}}">
+                    <div class="metric-value" style="font-size: 18px;">{{this.avgSentiment}}</div>
+                    <div class="metric-label">Avg Score</div>
+                </div>
+            </div>
+        </div>
+        {{/each}}
+    </div>
+</div>
+
+<div class="report-section">
+    <h2 class="section-title">Author Influence & Engagement</h2>
+    <div class="section-content">
+        <p>{{aiGeneratedInfluencerAnalysis}}</p>
+        
+        <h3 style="margin: 20px 0 10px 0; font-size: 16px;">Top Positive Influencers</h3>
+        {{#each topPositiveAuthors}}
+        <div class="mention-sample" style="border-left-color: #059669;">
+            <strong>@{{this.author}}</strong> ({{this.followerCount}} followers)
+            <br><small>{{this.mentionCount}} positive mentions • Avg engagement: {{this.avgEngagement}}</small>
+        </div>
+        {{/each}}
+
+        <h3 style="margin: 20px 0 10px 0; font-size: 16px;">Authors Requiring Attention</h3>
+        {{#each negativeInfluentialAuthors}}
+        <div class="mention-sample" style="border-left-color: #dc2626;">
+            <strong>@{{this.author}}</strong> ({{this.followerCount}} followers)
+            <br><small>{{this.mentionCount}} negative mentions • Impact score: {{this.impactScore}}</small>
+        </div>
+        {{/each}}
+    </div>
+</div>
+
+<div class="report-section">
+    <h2 class="section-title">Sentiment Confidence Analysis</h2>
+    <div class="section-content">
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-value">{{highConfidenceMentions}}</div>
+                <div class="metric-label">High Confidence (≥0.8)</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value">{{mediumConfidenceMentions}}</div>
+                <div class="metric-label">Medium Confidence (0.6-0.8)</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value">{{lowConfidenceMentions}}</div>
+                <div class="metric-label">Needs Review (<0.6)</div>
+            </div>
+        </div>
+
+        <div>{{aiGeneratedConfidenceAnalysis}}</div>
+    </div>
+</div>
+
+{{#if sentimentAnomalies.length}}
+<div class="report-section">
+    <h2 class="section-title">⚠️ Sentiment Anomalies Detected</h2>
+    <div class="section-content">
+        {{#each sentimentAnomalies}}
+        <div class="mention-sample" style="border-left-color: #f59e0b;">
+            <strong>Anomaly in {{this.topic}}</strong>
+            <br>{{this.description}}
+            <div class="mention-meta">
+                Detected: {{this.detectedAt}} • Confidence: {{this.confidence}} • Impact: {{this.impactLevel}}
+            </div>
+        </div>
+        {{/each}}
+    </div>
+</div>
+{{/if}}
+
+<div class="report-section">
+    <h2 class="section-title">Sample Sentiment Analysis</h2>
+    <div class="section-content">
+        <h3 style="margin: 20px 0 10px 0; font-size: 16px;">Highly Positive Examples</h3>
+        {{#each positiveExamples}}
+        <div class="mention-sample" style="border-left-color: #059669;">
+            "{{this.content}}"
+            <div class="mention-meta">
+                {{this.source_type}} • Confidence: {{this.sentiment_confidence}} • {{this.author_followers}} followers
+            </div>
+        </div>
+        {{/each}}
+
+        <h3 style="margin: 20px 0 10px 0; font-size: 16px;">Concerning Negative Examples</h3>
+        {{#each negativeExamples}}
+        <div class="mention-sample" style="border-left-color: #dc2626;">
+            "{{this.content}}"
+            <div class="mention-meta">
+                {{this.source_type}} • Confidence: {{this.sentiment_confidence}} • Priority: {{this.max_priority}}
+            </div>
+        </div>
+        {{/each}}
+    </div>
+</div>
+
+<div class="report-section">
+    <h2 class="section-title">Sentiment Improvement Recommendations</h2>
+    <div class="section-content">
+        <div>{{aiGeneratedSentimentRecommendations}}</div>
+        
+        <ul class="insights-list">
+            {{#each sentimentActionItems}}
+            <li style="border-left: 4px solid {{this.priorityColor}};">
+                <strong>{{this.action}}</strong>
+                <br>{{this.description}}
+                <br><small>Priority: {{this.priority}} • Expected Impact: {{this.expectedImpact}}</small>
+            </li>
+            {{/each}}
+        </ul>
+    </div>
+</div>

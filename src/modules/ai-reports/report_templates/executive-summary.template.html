@@ -1,0 +1,158 @@
+<!-- Executive Summary Report Template -->
+<div class="report-section">
+    <h2 class="section-title">Executive Summary</h2>
+    <div class="section-content">
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-value">{{totalMentions}}</div>
+                <div class="metric-label">Total Mentions</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value positive">{{sentimentPositivePercent}}%</div>
+                <div class="metric-label">Positive Sentiment</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value">{{uniqueAuthors}}</div>
+                <div class="metric-label">Unique Contributors</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value {{#if highPriorityCount}}negative{{else}}positive{{/if}}">{{highPriorityCount}}</div>
+                <div class="metric-label">Critical Issues</div>
+            </div>
+        </div>
+
+        <p><strong>{{aiGeneratedSummary}}</strong></p>
+    </div>
+</div>
+
+<div class="report-section">
+    <h2 class="section-title">Brand Health Overview</h2>
+    <div class="section-content">
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-value positive">{{sentimentPositive}}</div>
+                <div class="metric-label">Positive</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value negative">{{sentimentNegative}}</div>
+                <div class="metric-label">Negative</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value neutral">{{sentimentNeutral}}</div>
+                <div class="metric-label">Neutral</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value">{{avgSentimentConfidence}}</div>
+                <div class="metric-label">Avg Confidence</div>
+            </div>
+        </div>
+
+        <div class="chart-placeholder">
+            <strong>Sentiment Trend Chart</strong><br>
+            <small>Chart visualization would be inserted here via chart library</small>
+        </div>
+    </div>
+</div>
+
+{{#if highPriorityMentions.length}}
+<div class="report-section">
+    <h2 class="section-title">🚨 Critical Issues Requiring Attention</h2>
+    <div class="section-content">
+        {{#each highPriorityMentions}}
+        <div class="mention-sample priority-high">
+            <strong>{{this.content}}</strong>
+            <div class="mention-meta">
+                {{this.source_type}} • {{this.sentiment}} • Urgency: {{this.max_urgency_score}}
+            </div>
+        </div>
+        {{/each}}
+    </div>
+</div>
+{{/if}}
+
+<div class="report-section">
+    <h2 class="section-title">Top Performance Categories</h2>
+    <div class="section-content">
+        <ul class="insights-list">
+            {{#each topCategories}}
+            <li>
+                <strong>{{this.category}}</strong>: {{this.count}} mentions
+            </li>
+            {{/each}}
+        </ul>
+    </div>
+</div>
+
+<div class="report-section">
+    <h2 class="section-title">Trending Topics</h2>
+    <div class="section-content">
+        <div class="metrics-grid">
+            {{#each topTopics}}
+            <div class="metric-card">
+                <div class="metric-value">{{this.count}}</div>
+                <div class="metric-label">{{this.topic}}</div>
+            </div>
+            {{/each}}
+        </div>
+    </div>
+</div>
+
+<div class="report-section">
+    <h2 class="section-title">Source Performance</h2>
+    <div class="section-content">
+        <ul class="insights-list">
+            {{#each topSourceTypes}}
+            <li>
+                <strong>{{this.source_type}}</strong>: {{this.count}} mentions ({{this.percentage}}%)
+            </li>
+            {{/each}}
+        </ul>
+    </div>
+</div>
+
+{{#if positiveMentions.length}}
+<div class="report-section">
+    <h2 class="section-title">✨ Positive Highlights</h2>
+    <div class="section-content">
+        {{#each positiveMentions}}
+        <div class="mention-sample">
+            "{{this.content}}"
+            <div class="mention-meta">
+                {{this.source_type}} • {{this.brand_name}} • Confidence: {{this.sentiment_confidence}}
+            </div>
+        </div>
+        {{/each}}
+    </div>
+</div>
+{{/if}}
+
+<div class="report-section">
+    <h2 class="section-title">Strategic Recommendations</h2>
+    <div class="section-content">
+        <div>{{aiGeneratedRecommendations}}</div>
+    </div>
+</div>
+
+<div class="report-section">
+    <h2 class="section-title">Priority Distribution</h2>
+    <div class="section-content">
+        <div class="metrics-grid">
+            <div class="metric-card priority-high">
+                <div class="metric-value">{{highPriorityCount}}</div>
+                <div class="metric-label">High Priority</div>
+            </div>
+            <div class="metric-card priority-medium">
+                <div class="metric-value">{{mediumPriorityCount}}</div>
+                <div class="metric-label">Medium Priority</div>
+            </div>
+            <div class="metric-card priority-low">
+                <div class="metric-value">{{lowPriorityCount}}</div>
+                <div class="metric-label">Low Priority</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value">{{avgUrgencyScore}}</div>
+                <div class="metric-label">Avg Urgency Score</div>
+            </div>
+        </div>
+    </div>
+</div>

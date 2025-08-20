@@ -1,0 +1,249 @@
+<!-- Competitive Analysis Report Template -->
+<div class="report-section">
+    <h2 class="section-title">Competitive Landscape Overview</h2>
+    <div class="section-content">
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-value">{{totalBrands}}</div>
+                <div class="metric-label">Brands Analyzed</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value">{{totalMentions}}</div>
+                <div class="metric-label">Total Mentions</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value">{{marketSharePercent}}%</div>
+                <div class="metric-label">Your Share of Voice</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value {{competitivePositionClass}}">{{competitiveRanking}}</div>
+                <div class="metric-label">Market Position</div>
+            </div>
+        </div>
+
+        <p><strong>{{aiGeneratedCompetitiveOverview}}</strong></p>
+    </div>
+</div>
+
+<div class="report-section">
+    <h2 class="section-title">Share of Voice Analysis</h2>
+    <div class="section-content">
+        <div class="chart-placeholder">
+            <strong>Market Share Visualization</strong><br>
+            <small>Share of voice pie chart and trend analysis</small>
+        </div>
+        
+        {{#each brandShareOfVoice}}
+        <div class="metric-card" style="margin-bottom: 16px; {{#if this.isYourBrand}}border: 2px solid #2563eb;{{/if}}">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <strong>{{this.brandName}} {{#if this.isYourBrand}}(You){{/if}}</strong>
+                    <br><small>{{this.mentionCount}} mentions</small>
+                </div>
+                <div>
+                    <div class="metric-value" style="font-size: 24px;">{{this.sharePercent}}%</div>
+                    <div class="metric-label">Share of Voice</div>
+                </div>
+            </div>
+            <div style="margin-top: 12px;">
+                <small>Sentiment: {{this.positivePercent}}% positive, {{this.negativePercent}}% negative</small>
+            </div>
+        </div>
+        {{/each}}
+    </div>
+</div>
+
+<div class="report-section">
+    <h2 class="section-title">Competitive Sentiment Comparison</h2>
+    <div class="section-content">
+        <div class="chart-placeholder">
+            <strong>Sentiment Comparison Chart</strong><br>
+            <small>Brand sentiment scores comparison visualization</small>
+        </div>
+
+        {{#each competitiveSentimentAnalysis}}
+        <div class="mention-sample" style="{{#if this.isYourBrand}}border: 2px solid #2563eb; background: #eff6ff;{{/if}}">
+            <div style="display: flex; justify-content: between; align-items: center;">
+                <div style="flex: 1;">
+                    <strong>{{this.brandName}} {{#if this.isYourBrand}}(Your Brand){{/if}}</strong>
+                    <br><small>{{this.mentionCount}} mentions analyzed</small>
+                </div>
+                <div style="text-align: right;">
+                    <div class="metric-value {{this.sentimentClass}}" style="font-size: 18px;">{{this.avgSentimentScore}}</div>
+                    <small>Sentiment Score</small>
+                </div>
+            </div>
+            <div style="margin-top: 10px; font-size: 12px;">
+                <span class="positive">{{this.positive}} positive</span> • 
+                <span class="negative">{{this.negative}} negative</span> • 
+                <span class="neutral">{{this.neutral}} neutral</span>
+            </div>
+        </div>
+        {{/each}}
+    </div>
+</div>
+
+<div class="report-section">
+    <h2 class="section-title">Platform Performance Comparison</h2>
+    <div class="section-content">
+        {{#each platformComparison}}
+        <div style="margin-bottom: 30px;">
+            <h3 style="font-size: 16px; margin-bottom: 10px;">{{this.platform}}</h3>
+            <div class="metrics-grid">
+                {{#each this.brands}}
+                <div class="metric-card {{#if this.isYourBrand}}priority-medium{{/if}}">
+                    <div class="metric-value">{{this.mentionCount}}</div>
+                    <div class="metric-label">{{this.brandName}}</div>
+                    <small style="display: block; margin-top: 4px;">{{this.engagementRate}} engagement</small>
+                </div>
+                {{/each}}
+            </div>
+        </div>
+        {{/each}}
+    </div>
+</div>
+
+<div class="report-section">
+    <h2 class="section-title">Competitive Strengths & Weaknesses</h2>
+    <div class="section-content">
+        <div>{{aiGeneratedStrengthsWeaknesses}}</div>
+        
+        <h3 style="margin: 20px 0 10px 0; font-size: 16px; color: #059669;">🎯 Your Competitive Advantages</h3>
+        <ul class="insights-list">
+            {{#each yourStrengths}}
+            <li style="border-left-color: #059669;">
+                <strong>{{this.category}}</strong>: {{this.description}}
+                <br><small>Evidence: {{this.evidence}} • Confidence: {{this.confidence}}</small>
+            </li>
+            {{/each}}
+        </ul>
+
+        <h3 style="margin: 20px 0 10px 0; font-size: 16px; color: #dc2626;">⚠️ Areas for Improvement</h3>
+        <ul class="insights-list">
+            {{#each yourWeaknesses}}
+            <li style="border-left-color: #dc2626;">
+                <strong>{{this.category}}</strong>: {{this.description}}
+                <br><small>Competitor advantage: {{this.competitorAdvantage}} • Priority: {{this.priority}}</small>
+            </li>
+            {{/each}}
+        </ul>
+    </div>
+</div>
+
+<div class="report-section">
+    <h2 class="section-title">Emerging Competitive Threats</h2>
+    <div class="section-content">
+        {{#if competitiveThreats.length}}
+            {{#each competitiveThreats}}
+            <div class="mention-sample priority-high">
+                <strong>⚡ {{this.threatType}}: {{this.description}}</strong>
+                <br>Competitor: {{this.competitorName}}
+                <div class="mention-meta">
+                    Threat Level: {{this.threatLevel}} • First Detected: {{this.firstDetected}} • Trend: {{this.trend}}
+                </div>
+            </div>
+            {{/each}}
+        {{else}}
+            <div class="mention-sample priority-low">
+                <strong>✅ No Immediate Competitive Threats Detected</strong>
+                <br>Current competitive position appears stable with no emerging threats identified in this reporting period.
+            </div>
+        {{/if}}
+    </div>
+</div>
+
+<div class="report-section">
+    <h2 class="section-title">Topic Leadership Analysis</h2>
+    <div class="section-content">
+        <div>{{aiGeneratedTopicLeadership}}</div>
+        
+        {{#each topicLeadership}}
+        <div style="margin-bottom: 20px;">
+            <h4 style="font-size: 14px; margin-bottom: 8px;">{{this.topic}}</h4>
+            <div class="metrics-grid">
+                {{#each this.brandPerformance}}
+                <div class="metric-card {{#if this.isLeader}}priority-low{{/if}} {{#if this.isYourBrand}}priority-medium{{/if}}">
+                    <div class="metric-value">{{this.mentionCount}}</div>
+                    <div class="metric-label">{{this.brandName}} {{#if this.isLeader}}👑{{/if}}</div>
+                    <small>{{this.sentimentScore}} sentiment</small>
+                </div>
+                {{/each}}
+            </div>
+        </div>
+        {{/each}}
+    </div>
+</div>
+
+<div class="report-section">
+    <h2 class="section-title">Competitive Intelligence Insights</h2>
+    <div class="section-content">
+        <div>{{aiGeneratedCompetitiveIntelligence}}</div>
+        
+        <h3 style="margin: 20px 0 10px 0; font-size: 16px;">🔍 Notable Competitor Mentions</h3>
+        {{#each notableCompetitorMentions}}
+        <div class="mention-sample">
+            <strong>{{this.competitorName}}:</strong> "{{this.content}}"
+            <div class="mention-meta">
+                {{this.source_type}} • {{this.sentiment}} • {{this.engagement}} engagement • {{this.analysisInsight}}
+            </div>
+        </div>
+        {{/each}}
+    </div>
+</div>
+
+<div class="report-section">
+    <h2 class="section-title">Market Opportunity Analysis</h2>
+    <div class="section-content">
+        <div>{{aiGeneratedOpportunityAnalysis}}</div>
+        
+        <ul class="insights-list">
+            {{#each marketOpportunities}}
+            <li style="border-left-color: {{this.opportunityColor}};">
+                <strong>{{this.opportunityType}}: {{this.title}}</strong>
+                <br>{{this.description}}
+                <br><small>Potential Impact: {{this.potentialImpact}} • Effort Required: {{this.effortLevel}} • Timeline: {{this.timeline}}</small>
+            </li>
+            {{/each}}
+        </ul>
+    </div>
+</div>
+
+<div class="report-section">
+    <h2 class="section-title">Strategic Recommendations</h2>
+    <div class="section-content">
+        <div>{{aiGeneratedStrategicRecommendations}}</div>
+        
+        <h3 style="margin: 20px 0 10px 0; font-size: 16px;">🎯 Immediate Actions (0-30 days)</h3>
+        <ul class="insights-list">
+            {{#each immediateActions}}
+            <li style="border-left-color: #dc2626;">
+                <strong>{{this.action}}</strong>
+                <br>{{this.description}}
+                <br><small>Expected Outcome: {{this.expectedOutcome}}</small>
+            </li>
+            {{/each}}
+        </ul>
+
+        <h3 style="margin: 20px 0 10px 0; font-size: 16px;">📈 Medium-term Strategy (30-90 days)</h3>
+        <ul class="insights-list">
+            {{#each mediumTermActions}}
+            <li style="border-left-color: #f59e0b;">
+                <strong>{{this.action}}</strong>
+                <br>{{this.description}}
+                <br><small>Expected Outcome: {{this.expectedOutcome}}</small>
+            </li>
+            {{/each}}
+        </ul>
+
+        <h3 style="margin: 20px 0 10px 0; font-size: 16px;">🚀 Long-term Positioning (90+ days)</h3>
+        <ul class="insights-list">
+            {{#each longTermActions}}
+            <li style="border-left-color: #059669;">
+                <strong>{{this.action}}</strong>
+                <br>{{this.description}}
+                <br><small>Expected Outcome: {{this.expectedOutcome}}</small>
+            </li>
+            {{/each}}
+        </ul>
+    </div>
+</div>
