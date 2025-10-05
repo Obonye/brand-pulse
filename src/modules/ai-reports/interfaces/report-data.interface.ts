@@ -24,6 +24,19 @@ export interface MentionReportData {
   metadata: Record<string, any>;
 }
 
+/**
+ * Simplified mention data for storing in insights (to reduce JSON size)
+ */
+export interface SimplifiedMention {
+  content: string;
+  author: string;
+  source_type: string;
+  sentiment?: 'positive' | 'negative' | 'neutral';
+  sentiment_confidence: number;
+  max_urgency_score?: number;
+  published_at?: string;
+}
+
 export interface AITag {
   category: string;
   category_display: string;
@@ -61,6 +74,36 @@ export interface TopItem {
   count: number;
 }
 
+/**
+ * Streamlined insights containing only essential data for AI reports
+ * Focused on 6 key elements: summary, recommendations, metrics, sentiment, sources, topics
+ */
+export interface StreamlinedInsights {
+  // Key Metrics
+  totalMentions: number;
+  dateRange: { from: string; to: string };
+  confidenceThresholds: {
+    tags: number;
+    topics: number;
+  };
+
+  // Sentiment Breakdown
+  sentimentBreakdown: {
+    positive: number;
+    negative: number;
+    neutral: number;
+    avgConfidence: number;
+  };
+
+  // Top Sources and Topics (essential aggregated data)
+  topSourceTypes: TopItem[];
+  topTopics: TopItem[];
+}
+
+/**
+ * Legacy interface - kept for backwards compatibility during transition
+ * @deprecated Use StreamlinedInsights instead for new reports
+ */
 export interface ReportInsights {
   // Pre-calculated summary metrics from RPC
   totalMentions: number;
@@ -82,10 +125,10 @@ export interface ReportInsights {
   topSourceTypes: TopItem[];
   uniqueAuthors: number;
 
-  // Sample mentions for context
-  highPriorityMentions: MentionReportData[];
-  positiveMentions: MentionReportData[];
-  negativeMentions: MentionReportData[];
+  // Sample mentions for context (simplified to reduce JSON size)
+  highPriorityMentions: SimplifiedMention[];
+  positiveMentions: SimplifiedMention[];
+  negativeMentions: SimplifiedMention[];
 
   // Configuration and metadata
   dateRange: { from: string; to: string };
@@ -106,24 +149,64 @@ export interface ReportOptions {
   automated?: boolean;
 }
 
+// New structured AI content interface
+export interface AIReportContent {
+  summary: string;
+  content: string;
+  keyFindings: string[];
+  recommendations: string[];
+}
+
+// Enhanced metadata interface
+export interface ReportMetadata {
+  generatedAt: string;
+  dateRange: string;
+  aiModel: string;
+  processingTime: number;
+  confidenceThresholds: {
+    tags: number;
+    topics: number;
+  };
+  userId?: string;
+  customInstructions?: string;
+}
+
+// Complete structured report data (what gets returned to frontend)
+export interface StructuredReportData {
+  title: string;
+  reportType: string;
+  insights: ReportInsights;
+  aiContent: AIReportContent;
+  metadata: ReportMetadata;
+  data: {
+    mentions: MentionReportData[]; // Limited subset for JSON size
+    stats: MentionSummaryStats;
+  };
+}
+
+// Database stored report (with JSON content)
 export interface GeneratedReport {
   id: string;
   tenant_id: string;
   report_type: string;
   title: string;
-  content: string;
+  content: string; // JSON stringified StructuredReportData
   summary: string;
   insights: ReportInsights;
-  metadata: {
-    dateRange: string;
-    generatedAt: string;
-    confidenceThreshold: number;
-    aiModel: string;
-    processingTime: number;
-  };
-  date_from: string;
-  date_to: string;
+  metadata: ReportMetadata;
+  date_from?: string;
+  date_to?: string;
   generated_at: string;
+  created_at?: string;
+  updated_at?: string;
+  exports?: Record<string, any>;
+  processingStats?: {
+    totalTime: number;
+    aiTime: number;
+    tokensUsed: number;
+    mentionsProcessed: number;
+    model: string;
+  };
 }
 
 export interface ReportTemplate {

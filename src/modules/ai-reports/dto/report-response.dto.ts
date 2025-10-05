@@ -25,27 +25,32 @@ export class ReportResponseDto {
 
   @ApiProperty()
   metadata: {
-    dateRange: string;
     generatedAt: string;
-    confidenceThreshold: number;
+    dateRange: string;
     aiModel: string;
     processingTime: number;
+    confidenceThresholds: {
+      tags: number;
+      topics: number;
+    };
+    userId?: string;
+    customInstructions?: string;
   };
 
-  @ApiProperty()
-  date_from: string;
+  @ApiPropertyOptional()
+  date_from?: string;
 
-  @ApiProperty()
-  date_to: string;
+  @ApiPropertyOptional()
+  date_to?: string;
 
   @ApiProperty()
   generated_at: string;
 
-  @ApiProperty()
-  created_at: string;
+  @ApiPropertyOptional()
+  created_at?: string;
 
-  @ApiProperty()
-  updated_at: string;
+  @ApiPropertyOptional()
+  updated_at?: string;
 }
 
 export class ReportListResponseDto {
@@ -107,11 +112,11 @@ export class ReportStatsDto {
   @ApiProperty()
   avgProcessingTime: number;
 
-  @ApiProperty()
-  lastGenerated: string;
+  @ApiPropertyOptional()
+  lastGenerated: string | null;
 
-  @ApiProperty()
-  mostPopularType: string;
+  @ApiPropertyOptional()
+  mostPopularType: string | null;
 }
 
 export class ScheduledReportDto {
@@ -137,7 +142,7 @@ export class ScheduledReportDto {
   last_generated_at?: string;
 
   @ApiPropertyOptional()
-  next_scheduled_at?: string;
+  next_scheduled_at?: string | null;
 
   @ApiProperty()
   created_at: string;

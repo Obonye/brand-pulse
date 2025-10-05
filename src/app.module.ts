@@ -18,6 +18,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { MentionsModule } from './modules/mentions/mentions.module';
 import { IndustriesModule } from './modules/industries/industries.module';
 import { AITaggingModule } from './modules/ai-tagging/ai-tagging.module';
+import { AiReportsModule } from './modules/ai-reports/ai-reports.module';
 import { LoggerModule } from './common/logger/logger.module';
 
 @Module({
@@ -62,7 +63,8 @@ import { LoggerModule } from './common/logger/logger.module';
     AnalyticsModule,
     MentionsModule,
     IndustriesModule,
-    AITaggingModule
+    AITaggingModule,
+    AiReportsModule
   ],
   controllers: [AppController],
   providers: [AppService],

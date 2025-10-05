@@ -131,12 +131,21 @@ export class ReportTemplateEngine {
    * Load all HTML templates from the templates directory
    */
   private loadTemplates(): void {
-    const templatesDir = path.join(__dirname, 'report_templates');
-    
-    // Load base template
-    const baseTemplatePath = path.join(templatesDir, 'base.template.html');
-    const baseTemplateContent = fs.readFileSync(baseTemplatePath, 'utf-8');
-    this.baseTemplate = Handlebars.compile(baseTemplateContent);
+    try {
+      const templatesDir = __dirname;
+      console.log('Loading templates from:', templatesDir);
+      
+      // Load base template
+      const baseTemplatePath = path.join(templatesDir, 'base.template.html');
+      console.log('Loading base template from:', baseTemplatePath);
+      
+      if (!fs.existsSync(baseTemplatePath)) {
+        console.warn('Base template not found at:', baseTemplatePath);
+        return;
+      }
+      
+      const baseTemplateContent = fs.readFileSync(baseTemplatePath, 'utf-8');
+      this.baseTemplate = Handlebars.compile(baseTemplateContent);
 
     // Load report-specific templates
     const reportTemplates = [
@@ -147,13 +156,23 @@ export class ReportTemplateEngine {
       'crisis-alert'
     ];
 
-    for (const templateName of reportTemplates) {
-      const templatePath = path.join(templatesDir, `${templateName}.template.html`);
-      
-      if (fs.existsSync(templatePath)) {
-        const templateContent = fs.readFileSync(templatePath, 'utf-8');
-        this.templates.set(templateName, Handlebars.compile(templateContent));
+      for (const templateName of reportTemplates) {
+        const templatePath = path.join(templatesDir, `${templateName}.template.html`);
+        console.log(`Loading template: ${templateName} from ${templatePath}`);
+        
+        if (fs.existsSync(templatePath)) {
+          const templateContent = fs.readFileSync(templatePath, 'utf-8');
+          this.templates.set(templateName, Handlebars.compile(templateContent));
+          console.log(`Loaded template: ${templateName}`);
+        } else {
+          console.warn(`Template not found: ${templatePath}`);
+        }
       }
+      
+      console.log('Template engine initialized successfully');
+    } catch (error) {
+      console.error('Failed to load templates:', error.message);
+      console.error('Template engine will work with fallback HTML only');
     }
   }
 

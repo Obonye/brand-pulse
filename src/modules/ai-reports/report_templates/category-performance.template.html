@@ -244,31 +244,33 @@
     </div>
 </div>
 
-<div class="report-section">
-    <h2 class="section-title">Category Action Items & Recommendations</h2>
-    <div class="section-content">
-        <div>{{aiGeneratedCategoryRecommendations}}</div>
-        
-        {{#each categoryActionItems}}
-        <div style="margin-bottom: 20px;">
-            <h3 style="font-size: 16px; margin-bottom: 10px;">{{this.categoryDisplay}}</h3>
-            <ul class="insights-list">
-                {{#each this.actions}}
-                <li style="border-left-color: {{this.priorityColor}};">
-                    <strong>{{this.actionType}}: {{this.title}}</strong>
-                    <br>{{this.description}}
-                    <br><small>
-                        Priority: {{this.priority}} • 
-                        Timeline: {{this.timeline}} • 
-                        Expected Impact: {{this.expectedImpact}}
-                    </small>
-                </li>
-                {{/each}}
-            </ul>
-        </div>
+{{#if recommendations}}
+<div class="recommendations-section">
+    <h2 class="recommendations-title">Category Performance Recommendations</h2>
+    <ul class="recommendations-list">
+        {{#each recommendations}}
+        <li class="recommendation-item">
+            {{this}}
+            <span class="recommendation-priority priority-important">Category Strategy</span>
+        </li>
         {{/each}}
-    </div>
+    </ul>
 </div>
+{{/if}}
+
+{{#if actions}}
+<div class="recommendations-section">
+    <h2 class="recommendations-title">Immediate Category Actions</h2>
+    <ul class="recommendations-list">
+        {{#each actions}}
+        <li class="recommendation-item">
+            {{this}}
+            <span class="recommendation-priority priority-critical">Category Action</span>
+        </li>
+        {{/each}}
+    </ul>
+</div>
+{{/if}}
 
 <div class="report-section">
     <h2 class="section-title">Category Quality & Confidence Metrics</h2>

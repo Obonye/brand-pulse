@@ -26,16 +26,17 @@ import {
   ApiConsumes,
   ApiProduces
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { TenantGuard } from '../../auth/guards/tenant.guard';
-import { CurrentTenant } from '../../auth/decorators/current-tenant.decorator';
-import { CurrentUser } from '../../auth/decorators/current-user.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { TenantGuard } from '../auth/guards/tenant.guard';
+import { CurrentTenant } from '../auth/decorators/current-tenant.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ReportGeneratorService } from './services/report-generator.service';
 import { ScheduledReportsService } from './services/scheduled-reports.service';
 import { ReportExportService } from './services/report-export.service';
 import { 
   GenerateReportDto,
   ExportReportDto,
+  ExportFormat,
   ScheduleReportDto,
   UpdateScheduledReportDto
 } from './dto';
@@ -207,32 +208,87 @@ export class AiReportsController {
     @Body() exportDto: ExportReportDto,
     @CurrentTenant() tenantId: string
   ): Promise<ExportReportResponseDto> {
+    console.log('=== exportReport called ===', {
+      reportId,
+      exportDto,
+      tenantId,
+      tenantIdType: typeof tenantId
+    });
     const report = await this.reportGenerator.getReport(tenantId, reportId);
     
-    let exportResult: { buffer: Buffer; filename: string; mimeType: string };
+    let exportResult: { buffer: Buffer; filename: string; mimeType: string; size: number };
+
+    // Extract full report content including AI recommendations
+    let fullReportData = report.insights; // Default to just insights
+    let aiRecommendations = [];
+    let aiActions = [];
+    
+    try {
+      if (report.content && typeof report.content === 'string') {
+        const reportContent = JSON.parse(report.content);
+        // Use the full insights data from the stored report content if available
+        if (reportContent.insights) {
+          fullReportData = reportContent.insights;
+        }
+        aiRecommendations = reportContent.aiContent?.recommendations || [];
+        aiActions = reportContent.aiContent?.actions || [];
+        
+        console.log('Extracted report data:', {
+          hasInsights: !!reportContent.insights,
+          insightsKeys: reportContent.insights ? Object.keys(reportContent.insights) : [],
+          recommendationsCount: aiRecommendations.length,
+          actionsCount: aiActions.length,
+          recommendationsPreview: aiRecommendations.slice(0, 2),
+          actionsPreview: aiActions.slice(0, 2),
+          hasAiContent: !!reportContent.aiContent,
+          aiContentKeys: reportContent.aiContent ? Object.keys(reportContent.aiContent) : [],
+          highPriorityMentions: reportContent.insights?.highPriorityMentions?.length || 0,
+          positiveMentions: reportContent.insights?.positiveMentions?.length || 0,
+          negativeMentions: reportContent.insights?.negativeMentions?.length || 0
+        });
+      }
+    } catch (error) {
+      console.log('Could not parse report content for AI recommendations:', error.message);
+    }
+
+    const metadata = {
+      title: report.title,
+      subtitle: report.summary || '',
+      dateRange: `${report.date_from} to ${report.date_to}`,
+      generatedAt: report.generated_at,
+      confidenceThreshold: 70, // Default confidence threshold
+      recommendations: aiRecommendations,
+      actions: aiActions
+    };
 
     switch (exportDto.format) {
-      case 'pdf':
-        exportResult = await this.reportExport.exportReportToPDF(report);
+      case ExportFormat.EXCEL:
+        exportResult = await this.reportExport.exportReport(
+          report.report_type,
+          fullReportData,
+          metadata,
+          { format: 'xlsx', includeRawData: false }
+        );
         break;
-      case 'excel':
-        exportResult = await this.reportExport.exportReportToExcel(report);
+      case ExportFormat.CSV:
+        exportResult = await this.reportExport.exportReport(
+          report.report_type,
+          fullReportData,
+          metadata,
+          { format: 'csv' }
+        );
         break;
-      case 'csv':
-        const csvContent = await this.reportExport.exportToCSV(report.insights);
-        exportResult = {
-          buffer: Buffer.from(csvContent, 'utf8'),
-          filename: `${report.title.replace(/[^a-zA-Z0-9]/g, '_')}.csv`,
-          mimeType: 'text/csv'
-        };
+      case ExportFormat.HTML:
+        exportResult = await this.reportExport.exportReport(
+          report.report_type,
+          fullReportData,
+          metadata,
+          { format: 'html' }
+        );
         break;
-      case 'html':
-        exportResult = {
-          buffer: Buffer.from(report.content, 'utf8'),
-          filename: `${report.title.replace(/[^a-zA-Z0-9]/g, '_')}.html`,
-          mimeType: 'text/html'
-        };
-        break;
+      case ExportFormat.PDF:
+        // PDF export not implemented in service yet
+        throw new BadRequestException('PDF export is not currently supported');
       default:
         throw new BadRequestException(`Unsupported export format: ${exportDto.format}`);
     }
@@ -263,36 +319,96 @@ export class AiReportsController {
     @CurrentTenant() tenantId: string,
     @Res({ passthrough: true }) res: Response
   ): Promise<StreamableFile> {
+    console.log('=== downloadReport called ===', {
+      reportId,
+      format,
+      tenantId,
+      tenantIdType: typeof tenantId
+    });
     const report = await this.reportGenerator.getReport(tenantId, reportId);
     
-    let exportResult: { buffer: Buffer; filename: string; mimeType: string };
+    let exportResult: { buffer: Buffer; filename: string; mimeType: string; size: number };
+
+    // Extract full report content including AI recommendations
+    let fullReportData = report.insights; // Default to just insights
+    let aiRecommendations = [];
+    let aiActions = [];
+    
+    try {
+      if (report.content && typeof report.content === 'string') {
+        const reportContent = JSON.parse(report.content);
+        // Use the full insights data from the stored report content if available
+        if (reportContent.insights) {
+          fullReportData = reportContent.insights;
+        }
+        aiRecommendations = reportContent.aiContent?.recommendations || [];
+        aiActions = reportContent.aiContent?.actions || [];
+        
+        console.log('Extracted report data for download:', {
+          hasInsights: !!reportContent.insights,
+          insightsKeys: reportContent.insights ? Object.keys(reportContent.insights) : [],
+          recommendationsCount: aiRecommendations.length,
+          actionsCount: aiActions.length,
+          recommendationsPreview: aiRecommendations.slice(0, 2), // Show first 2 for debugging
+          actionsPreview: aiActions.slice(0, 2), // Show first 2 for debugging
+          hasAiContent: !!reportContent.aiContent,
+          aiContentKeys: reportContent.aiContent ? Object.keys(reportContent.aiContent) : [],
+          highPriorityMentions: reportContent.insights?.highPriorityMentions?.length || 0,
+          positiveMentions: reportContent.insights?.positiveMentions?.length || 0,
+          negativeMentions: reportContent.insights?.negativeMentions?.length || 0
+        });
+      }
+    } catch (error) {
+      console.log('Could not parse report content for AI recommendations:', error.message);
+    }
+
+    const metadata = {
+      title: report.title,
+      subtitle: report.summary || '',
+      dateRange: `${report.date_from} to ${report.date_to}`,
+      generatedAt: report.generated_at,
+      confidenceThreshold: 70, // Default confidence threshold
+      recommendations: aiRecommendations,
+      actions: aiActions
+    };
 
     switch (format) {
-      case 'pdf':
-        exportResult = await this.reportExport.exportReportToPDF(report);
-        break;
+      case ExportFormat.EXCEL:
       case 'excel':
-        exportResult = await this.reportExport.exportReportToExcel(report);
+        exportResult = await this.reportExport.exportReport(
+          report.report_type,
+          fullReportData,
+          metadata,
+          { format: 'xlsx', includeRawData: false }
+        );
         break;
+      case ExportFormat.CSV:
       case 'csv':
-        const csvContent = await this.reportExport.exportToCSV(report.insights);
-        exportResult = {
-          buffer: Buffer.from(csvContent, 'utf8'),
-          filename: `${report.title.replace(/[^a-zA-Z0-9]/g, '_')}.csv`,
-          mimeType: 'text/csv'
-        };
+        exportResult = await this.reportExport.exportReport(
+          report.report_type,
+          fullReportData,
+          metadata,
+          { format: 'csv' }
+        );
         break;
+      case ExportFormat.HTML:
       case 'html':
-        exportResult = {
-          buffer: Buffer.from(report.content, 'utf8'),
-          filename: `${report.title.replace(/[^a-zA-Z0-9]/g, '_')}.html`,
-          mimeType: 'text/html'
-        };
+        exportResult = await this.reportExport.exportReport(
+          report.report_type,
+          fullReportData,
+          metadata,
+          { format: 'html' }
+        );
         break;
+      case ExportFormat.PDF:
+      case 'pdf':
+        // PDF export not implemented in service yet
+        throw new BadRequestException('PDF export is not currently supported');
       default:
         throw new BadRequestException(`Unsupported format: ${format}`);
     }
 
+    // Force download for all formats including HTML
     res.set({
       'Content-Type': exportResult.mimeType,
       'Content-Disposition': `attachment; filename="${exportResult.filename}"`

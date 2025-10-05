@@ -1,17 +1,16 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../../shared/supabase/supabase.service';
 import { ReportDataService } from './report-data.service';
 import { OpenAIReportService } from './openai-report.service';
-import { TemplateEngineService } from './template-engine.service';
-import { PdfGeneratorService } from './pdf-generator.service';
 import { ReportExportService } from './report-export.service';
 import { 
   ReportOptions, 
   ReportInsights, 
+  StreamlinedInsights,
   GeneratedReport,
   MentionReportData,
-  MentionSummaryStats
+  MentionSummaryStats,
+  SimplifiedMention
 } from '../interfaces/report-data.interface';
 import { GenerateReportDto } from '../dto/generate-report.dto';
 
@@ -20,12 +19,9 @@ export class ReportGeneratorService {
   private readonly logger = new Logger(ReportGeneratorService.name);
 
   constructor(
-    private readonly configService: ConfigService,
     private readonly supabaseService: SupabaseService,
     private readonly reportDataService: ReportDataService,
     private readonly openaiReportService: OpenAIReportService,
-    private readonly templateEngine: TemplateEngineService,
-    private readonly pdfGenerator: PdfGeneratorService,
     private readonly reportExport: ReportExportService,
   ) {}
 
@@ -65,61 +61,51 @@ export class ReportGeneratorService {
       // Step 3: Fetch complete dataset
       const { mentions, stats } = await this.reportDataService.getCompleteReportData(tenantId, reportOptions);
 
-      // Step 4: Process data into insights
-      const insights = this.processDataIntoInsights(mentions, stats, reportOptions);
+      // Step 4: Process data into streamlined insights (essential data only)
+      const streamlinedInsights = this.processDataIntoStreamlinedInsights(mentions, stats, reportOptions);
 
-      // Step 5: Generate AI content
+      // Step 5: Generate AI content using streamlined data
       const aiResult = await this.openaiReportService.generateReport(
-        insights,
+        streamlinedInsights,
         generateReportDto.reportType,
         generateReportDto.customInstructions
       );
 
-      // Step 6: Render HTML template
-      const htmlContent = await this.templateEngine.renderReport(
-        generateReportDto.reportType,
-        {
-          ...insights,
-          aiContent: aiResult.content,
-          aiSummary: aiResult.summary,
-          metadata: {
-            generatedAt: new Date().toISOString(),
-            reportType: generateReportDto.reportType,
-            dateRange: `${reportOptions.startDate || 'All time'} to ${reportOptions.endDate || 'Now'}`,
-            aiModel: aiResult.model,
-            processingTime: aiResult.processingTime,
-            confidenceThresholds: insights.confidenceThresholds
-          }
+      // Step 6: Create streamlined JSON report (focused on essential data)
+      const reportData = {
+        title: this.generateReportTitle(generateReportDto.reportType),
+        reportType: generateReportDto.reportType,
+        insights: streamlinedInsights, // Only essential insights
+        aiContent: {
+          summary: aiResult.summary,
+          content: aiResult.content,
+          keyFindings: ('keyFindings' in aiResult ? (aiResult as any).keyFindings : (aiResult as any).findings) || [],
+          recommendations: aiResult?.recommendations ?? aiResult?.actions ?? []
+        },
+        metadata: {
+          generatedAt: new Date().toISOString(),
+          dateRange: `${reportOptions.startDate || 'All time'} to ${reportOptions.endDate || 'Now'}`,
+          aiModel: aiResult.model,
+          processingTime: aiResult.processingTime,
+          confidenceThresholds: streamlinedInsights.confidenceThresholds
         }
-      );
+        // Removed: No longer storing raw mentions or detailed stats
+      };
 
-      // Step 7: Generate PDF if requested
-      let pdfBuffer: Buffer | null = null;
-      if (generateReportDto.formats?.includes('pdf')) {
-        pdfBuffer = await this.pdfGenerator.generatePDF(htmlContent, {
-          reportType: generateReportDto.reportType,
-          title: this.generateReportTitle(generateReportDto.reportType, insights)
-        });
-      }
-
-      // Step 8: Save report to database
+      // Step 7: Save structured report to database
       const savedReport = await this.saveReport(
         tenantId,
         generateReportDto,
-        insights,
-        aiResult,
-        htmlContent,
+        reportData,
         reportOptions,
         userId
       );
 
-      // Step 9: Handle file exports if requested
+      // Step 8: Handle exports if requested (JSON, CSV, Excel only)
       const exports = await this.handleExports(
         savedReport.id,
-        generateReportDto.formats || ['html'],
-        htmlContent,
-        pdfBuffer,
-        insights
+        generateReportDto.formats || ['json'],
+        reportData
       );
 
       const totalProcessingTime = Date.now() - startTime;
@@ -162,6 +148,12 @@ export class ReportGeneratorService {
    */
   async getReport(tenantId: string, reportId: string): Promise<GeneratedReport> {
     try {
+      this.logger.debug(`Fetching report`, {
+        reportId,
+        tenantId,
+        tenantIdType: typeof tenantId
+      });
+
       const { data, error } = await this.supabaseService.adminClient
         .from('ai_reports')
         .select('*')
@@ -169,7 +161,17 @@ export class ReportGeneratorService {
         .eq('tenant_id', tenantId)
         .single();
 
+      this.logger.debug(`Query result`, {
+        error: error?.message,
+        data: data ? { id: data.id, tenant_id: data.tenant_id } : null
+      });
+
       if (error || !data) {
+        this.logger.warn(`Report not found`, {
+          reportId,
+          tenantId,
+          error: error?.message
+        });
         throw new NotFoundException(`Report not found`);
       }
 
@@ -447,23 +449,47 @@ export class ReportGeneratorService {
       avgUrgency: stats.avg_urgency_score
     };
 
-    // Extract high priority mentions (top 10)
-    const highPriorityMentions = mentions
+    // Extract simplified mention samples (just key info, not full objects)
+    const highPriorityMentions: SimplifiedMention[] = mentions
       .filter(m => m.max_urgency_score >= 7)
       .sort((a, b) => b.max_urgency_score - a.max_urgency_score)
-      .slice(0, 10);
+      .slice(0, 3) // Reduced from 10 to 3
+      .map(m => ({
+        content: m.content?.substring(0, 200) || '', // Truncate content
+        source_type: m.source_type,
+        sentiment: m.sentiment,
+        max_urgency_score: m.max_urgency_score,
+        sentiment_confidence: m.sentiment_confidence,
+        author: m.author,
+        published_at: m.published_at
+      }));
 
-    // Extract positive highlights (top 5)
-    const positiveMentions = mentions
+    // Extract positive highlights (simplified)
+    const positiveMentions: SimplifiedMention[] = mentions
       .filter(m => m.sentiment === 'positive')
       .sort((a, b) => b.sentiment_confidence - a.sentiment_confidence)
-      .slice(0, 5);
+      .slice(0, 2) // Reduced from 5 to 2
+      .map(m => ({
+        content: m.content?.substring(0, 200) || '',
+        source_type: m.source_type,
+        sentiment_confidence: m.sentiment_confidence,
+        author: m.author,
+        sentiment: m.sentiment
+      }));
 
-    // Extract negative concerns (top 5)
-    const negativeMentions = mentions
+    // Extract negative concerns (simplified)
+    const negativeMentions: SimplifiedMention[] = mentions
       .filter(m => m.sentiment === 'negative')
       .sort((a, b) => b.sentiment_confidence - a.sentiment_confidence)
-      .slice(0, 5);
+      .slice(0, 2) // Reduced from 5 to 2
+      .map(m => ({
+        content: m.content?.substring(0, 200) || '',
+        source_type: m.source_type,
+        sentiment_confidence: m.sentiment_confidence,
+        author: m.author,
+        max_urgency_score: m.max_urgency_score,
+        sentiment: m.sentiment
+      }));
 
     return {
       totalMentions: stats.total_mentions,
@@ -490,7 +516,7 @@ export class ReportGeneratorService {
   /**
    * Generate appropriate title for report
    */
-  private generateReportTitle(reportType: string, insights: ReportInsights): string {
+  private generateReportTitle(reportType: string): string {
     const typeNames = {
       'executive-summary': 'Executive Summary',
       'sentiment-intelligence': 'Sentiment Intelligence Report',
@@ -512,26 +538,19 @@ export class ReportGeneratorService {
   private async saveReport(
     tenantId: string,
     dto: GenerateReportDto,
-    insights: ReportInsights,
-    aiResult: any,
-    htmlContent: string,
+    reportData: any,
     options: ReportOptions,
     userId?: string
   ): Promise<GeneratedReport> {
-    const reportData = {
+    const dbReportData = {
       tenant_id: tenantId,
       report_type: dto.reportType,
-      title: this.generateReportTitle(dto.reportType, insights),
-      content: htmlContent,
-      summary: aiResult.summary,
-      insights: insights,
+      title: reportData.title,
+      content: JSON.stringify(reportData), // Store entire structured JSON
+      summary: reportData.aiContent.summary,
+      insights: reportData.insights,
       metadata: {
-        dateRange: `${options.startDate || 'All time'} to ${options.endDate || 'Now'}`,
-        generatedAt: new Date().toISOString(),
-        confidenceThreshold: options.minTagConfidence || 0.7,
-        aiModel: aiResult.model,
-        processingTime: aiResult.processingTime,
-        tokensUsed: aiResult.tokensUsed,
+        ...reportData.metadata,
         userId: userId || null,
         customInstructions: dto.customInstructions || null
       },
@@ -542,7 +561,7 @@ export class ReportGeneratorService {
 
     const { data, error } = await this.supabaseService.adminClient
       .from('ai_reports')
-      .insert([reportData])
+      .insert([dbReportData])
       .select()
       .single();
 
@@ -554,49 +573,61 @@ export class ReportGeneratorService {
   }
 
   /**
-   * Handle multiple export formats
+   * Handle multiple export formats (JSON, CSV, Excel only)
    */
   private async handleExports(
     reportId: string,
     formats: string[],
-    htmlContent: string,
-    pdfBuffer: Buffer | null,
-    insights: ReportInsights
+    reportData: any
   ): Promise<Record<string, any>> {
     const exports: Record<string, any> = {};
 
     for (const format of formats) {
       try {
         switch (format) {
-          case 'pdf':
-            if (pdfBuffer) {
-              exports.pdf = {
-                size: pdfBuffer.length,
-                mimeType: 'application/pdf'
-              };
-            }
-            break;
-          
-          case 'html':
-            exports.html = {
-              size: Buffer.byteLength(htmlContent, 'utf8'),
-              mimeType: 'text/html'
+          case 'json':
+            const jsonContent = JSON.stringify(reportData, null, 2);
+            exports.json = {
+              size: Buffer.byteLength(jsonContent, 'utf8'),
+              mimeType: 'application/json'
             };
             break;
           
           case 'excel':
-            const excelBuffer = await this.reportExport.exportToExcel(insights, reportId);
+            const excelResult = await this.reportExport.exportReport(
+              reportData.reportType,
+              reportData.insights,
+              {
+                title: reportData.title,
+                subtitle: `${reportData.reportType} Report`,
+                dateRange: reportData.metadata.dateRange,
+                generatedAt: reportData.metadata.generatedAt,
+                confidenceThreshold: reportData.metadata.confidenceThresholds?.tags || 0.7
+              },
+              { format: 'xlsx', includeRawData: true }
+            );
             exports.excel = {
-              size: excelBuffer.length,
-              mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+              size: excelResult.size,
+              mimeType: excelResult.mimeType
             };
             break;
           
           case 'csv':
-            const csvContent = await this.reportExport.exportToCSV(insights);
+            const csvResult = await this.reportExport.exportReport(
+              reportData.reportType,
+              reportData.insights,
+              {
+                title: reportData.title,
+                subtitle: `${reportData.reportType} Report`,
+                dateRange: reportData.metadata.dateRange,
+                generatedAt: reportData.metadata.generatedAt,
+                confidenceThreshold: reportData.metadata.confidenceThresholds?.tags || 0.7
+              },
+              { format: 'csv' }
+            );
             exports.csv = {
-              size: Buffer.byteLength(csvContent, 'utf8'),
-              mimeType: 'text/csv'
+              size: csvResult.size,
+              mimeType: csvResult.mimeType
             };
             break;
         }
@@ -610,5 +641,43 @@ export class ReportGeneratorService {
     }
 
     return exports;
+  }
+
+  /**
+   * Process raw data into streamlined insights (essential data only)
+   * Focuses on 6 key elements: summary, recommendations, metrics, sentiment, sources, topics
+   */
+  private processDataIntoStreamlinedInsights(
+    mentions: MentionReportData[],
+    stats: MentionSummaryStats,
+    options: ReportOptions
+  ): StreamlinedInsights {
+    // Calculate sentiment breakdown
+    const sentimentBreakdown = {
+      positive: stats.sentiment_positive,
+      negative: stats.sentiment_negative,
+      neutral: stats.sentiment_neutral,
+      avgConfidence: stats.avg_sentiment_confidence
+    };
+
+    return {
+      // Key Metrics
+      totalMentions: stats.total_mentions,
+      dateRange: {
+        from: options.startDate || 'All time',
+        to: options.endDate || 'Now'
+      },
+      confidenceThresholds: {
+        tags: options.minTagConfidence || 0.7,
+        topics: options.minTopicConfidence || 0.6
+      },
+
+      // Sentiment Breakdown
+      sentimentBreakdown,
+
+      // Top Sources and Topics (essential aggregated data only)
+      topSourceTypes: stats.top_source_types || [],
+      topTopics: stats.top_topics || []
+    };
   }
 }

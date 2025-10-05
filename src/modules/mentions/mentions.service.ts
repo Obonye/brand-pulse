@@ -3,6 +3,7 @@ import { SupabaseService } from '../shared/supabase/supabase.service';
 import { ApifyService, ApifyDatasetItem } from '../shared/apify/apify.service';
 import { SentimentService } from '../sentiment/sentiment.service';
 import { AITaggingService } from '../ai-tagging/ai-tagging.service';
+import { ComplianceFilterService } from '../shared/compliance/compliance-filter.service';
 import { ScrapedMention } from './entities/mention.entity';
 import { LoggerService } from '../../common/logger/logger.service';
 
@@ -15,6 +16,7 @@ export class MentionsService {
     private apifyService: ApifyService,
     private sentimentService: SentimentService,
     private aiTaggingService: AITaggingService,
+    private complianceFilterService: ComplianceFilterService,
     private loggerService: LoggerService,
   ) {
     this.logger = this.loggerService.setContext('MentionsService');
@@ -70,7 +72,21 @@ export class MentionsService {
         tenantId: scraperRun.tenant_id
       });
 
-      const insertedMentions = await this.insertMentions(mentions);
+      // Apply compliance filtering to anonymize data
+      const complianceResult = this.complianceFilterService.anonymizeMentions(mentions);
+      const anonymizationStats = this.complianceFilterService.getAnonymizationStats(complianceResult);
+      
+      this.logger.info('Applied compliance filtering to mentions', {
+        mentionsCount: mentions.length,
+        fieldsAnonymized: anonymizationStats.fieldsAnonymized,
+        fieldsPreserved: anonymizationStats.fieldsPreserved,
+        anonymizationRate: anonymizationStats.anonymizationRate,
+        summary: anonymizationStats.summary,
+        runId: scraperRun.id,
+        tenantId: scraperRun.tenant_id
+      });
+
+      const insertedMentions = await this.insertMentions(complianceResult.anonymized);
 
       this.logger.info('Successfully processed mentions', {
         totalItems: apifyData.length,

@@ -9,21 +9,17 @@ import { AiReportsController } from './ai-reports.controller';
 import { ReportGeneratorService } from './services/report-generator.service';
 import { ReportDataService } from './services/report-data.service';
 import { OpenAIReportService } from './services/openai-report.service';
-import { TemplateEngineService } from './services/template-engine.service';
-import { PdfGeneratorService } from './services/pdf-generator.service';
 import { ReportExportService } from './services/report-export.service';
 import { ScheduledReportsService } from './services/scheduled-reports.service';
 
 // Shared modules
 import { SupabaseModule } from '../shared/supabase/supabase.module';
-import { LoggerModule } from '../shared/logger/logger.module';
 
 @Module({
   imports: [
     ConfigModule,
     ScheduleModule.forRoot(),
     SupabaseModule,
-    LoggerModule,
   ],
   controllers: [
     AiReportsController,
@@ -34,12 +30,8 @@ import { LoggerModule } from '../shared/logger/logger.module';
     ReportDataService,
     OpenAIReportService,
     
-    // Template and export services
-    TemplateEngineService,
-    PdfGeneratorService,
+    // Export and scheduling services
     ReportExportService,
-    
-    // Scheduling service
     ScheduledReportsService,
   ],
   exports: [

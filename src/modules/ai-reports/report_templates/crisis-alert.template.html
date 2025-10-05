@@ -28,46 +28,24 @@
     </div>
 </div>
 
-{{#if immediateThreatsMentions.length}}
 <div class="report-section">
-    <h2 class="section-title">🔥 Immediate Threats Requiring Action</h2>
+    <h2 class="section-title">🔥 AI Crisis Analysis</h2>
     <div class="section-content">
         <div style="background: #fef2f2; border-left: 4px solid #dc2626; padding: 16px; margin-bottom: 20px;">
-            <strong>Response Required Within: {{responseTimeframe}}</strong>
+            <strong>Crisis Status: {{crisisLevel}}</strong>
+            <br>{{aiGeneratedCrisisOverview}}
         </div>
         
-        {{#each immediateThreatsMentions}}
-        <div class="mention-sample priority-high" style="margin-bottom: 20px;">
-            <div style="display: flex; justify-content: between; align-items: start; margin-bottom: 12px;">
-                <div style="flex: 1;">
-                    <strong>THREAT LEVEL {{this.threatLevel}}</strong>
-                    <br><small>Urgency: {{this.max_urgency_score}} • Confidence: {{this.sentiment_confidence}}</small>
-                </div>
-                <div style="text-align: right; background: #dc2626; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px;">
-                    {{this.estimatedReach}} potential reach
-                </div>
-            </div>
+        <div style="background: #fff1f2; border: 1px solid #fecaca; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+            <h3 style="color: #dc2626; margin-bottom: 15px; font-size: 16px;">🚨 Key Risk Factors</h3>
+            <p>Analysis of {{totalMentions}} mentions identified {{criticalIssuesCount}} high-priority issues requiring immediate response. Risk escalation potential is currently <strong>{{escalationRisk}}</strong>.</p>
             
-            <div style="font-size: 16px; margin-bottom: 12px;">
-                "{{this.content}}"
-            </div>
-            
-            <div class="mention-meta">
-                <strong>Source:</strong> {{this.source_type}} • 
-                <strong>Author:</strong> {{this.author}} ({{this.author_followers}} followers) • 
-                <strong>Published:</strong> {{this.published_at}}
-            </div>
-            
-            <div style="margin-top: 12px; background: #fff1f2; padding: 12px; border-radius: 6px;">
-                <strong>Recommended Action:</strong> {{this.recommendedAction}}
-                <br><strong>Response Priority:</strong> {{this.responsePriority}}
-                <br><strong>Escalation Path:</strong> {{this.escalationPath}}
+            <div style="margin-top: 15px; padding: 12px; background: #ffffff; border-radius: 6px; border: 1px solid #f3f4f6;">
+                <strong>Immediate Response Priority:</strong> Address negative sentiment trends before they spread across multiple channels and impact broader brand perception.
             </div>
         </div>
-        {{/each}}
     </div>
 </div>
-{{/if}}
 
 <div class="report-section">
     <h2 class="section-title">📊 Crisis Severity Analysis</h2>
@@ -150,57 +128,33 @@
     </div>
 </div>
 
-<div class="report-section">
-    <h2 class="section-title">📋 Crisis Mitigation Strategies</h2>
-    <div class="section-content">
-        <div>{{aiGeneratedMitigationStrategies}}</div>
-        
-        <h3 style="margin: 20px 0 10px 0; font-size: 16px; color: #dc2626;">🚨 Immediate Actions (0-2 hours)</h3>
-        <ul class="insights-list">
-            {{#each immediateActions}}
-            <li style="border-left-color: #dc2626;">
-                <strong>{{this.action}}</strong>
-                <br>{{this.description}}
-                <br><small>
-                    <strong>Owner:</strong> {{this.owner}} • 
-                    <strong>Resources needed:</strong> {{this.resourcesNeeded}} • 
-                    <strong>Success metric:</strong> {{this.successMetric}}
-                </small>
-            </li>
-            {{/each}}
-        </ul>
-
-        <h3 style="margin: 20px 0 10px 0; font-size: 16px; color: #f59e0b;">⚡ Short-term Actions (2-24 hours)</h3>
-        <ul class="insights-list">
-            {{#each shortTermActions}}
-            <li style="border-left-color: #f59e0b;">
-                <strong>{{this.action}}</strong>
-                <br>{{this.description}}
-                <br><small>
-                    <strong>Owner:</strong> {{this.owner}} • 
-                    <strong>Dependencies:</strong> {{this.dependencies}} • 
-                    <strong>Success metric:</strong> {{this.successMetric}}
-                </small>
-            </li>
-            {{/each}}
-        </ul>
-
-        <h3 style="margin: 20px 0 10px 0; font-size: 16px; color: #059669;">🛡️ Recovery Actions (24+ hours)</h3>
-        <ul class="insights-list">
-            {{#each recoveryActions}}
-            <li style="border-left-color: #059669;">
-                <strong>{{this.action}}</strong>
-                <br>{{this.description}}
-                <br><small>
-                    <strong>Owner:</strong> {{this.owner}} • 
-                    <strong>Timeline:</strong> {{this.timeline}} • 
-                    <strong>Success metric:</strong> {{this.successMetric}}
-                </small>
-            </li>
-            {{/each}}
-        </ul>
-    </div>
+{{#if recommendations}}
+<div class="recommendations-section">
+    <h2 class="recommendations-title">Crisis Management Recommendations</h2>
+    <ul class="recommendations-list">
+        {{#each recommendations}}
+        <li class="recommendation-item">
+            {{this}}
+            <span class="recommendation-priority priority-important">Crisis Strategy</span>
+        </li>
+        {{/each}}
+    </ul>
 </div>
+{{/if}}
+
+{{#if actions}}
+<div class="recommendations-section">
+    <h2 class="recommendations-title">Immediate Crisis Actions</h2>
+    <ul class="recommendations-list">
+        {{#each actions}}
+        <li class="recommendation-item">
+            {{this}}
+            <span class="recommendation-priority priority-critical">Urgent Response</span>
+        </li>
+        {{/each}}
+    </ul>
+</div>
+{{/if}}
 
 {{#if viralRiskMentions.length}}
 <div class="report-section">

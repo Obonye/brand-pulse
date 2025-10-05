@@ -118,7 +118,7 @@ export class ScheduledReportResponseDto {
     schedule_cron: string;
     is_active: boolean;
     email_recipients: string[];
-    next_scheduled_at: string;
+    next_scheduled_at: string | null;
     created_at: string;
   };
 }

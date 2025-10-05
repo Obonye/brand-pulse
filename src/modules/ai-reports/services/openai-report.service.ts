@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
-import { ReportInsights } from '../interfaces/report-data.interface';
+import { ReportInsights, StreamlinedInsights } from '../interfaces/report-data.interface';
 
 @Injectable()
 export class OpenAIReportService {
@@ -25,10 +25,12 @@ export class OpenAIReportService {
    * Generate AI report content using OpenAI
    */
   async generateReport(
-    insights: ReportInsights,
+    insights: StreamlinedInsights,
     reportType: string,
     customInstructions?: string
   ): Promise<{
+    recommendations: any;
+    actions: any;
     content: string;
     summary: string;
     processingTime: number;
@@ -71,8 +73,21 @@ export class OpenAIReportService {
         throw new Error('No content generated from OpenAI');
       }
 
-      // Extract summary from content (first paragraph or executive summary section)
+      // Extract structured content from AI response
       const summary = this.extractSummary(content, reportType);
+      const recommendations = this.extractRecommendations(content, reportType);
+      const actions = this.extractActions(content, reportType);
+      
+      // Debug logging to see what we extracted
+      this.logger.debug(`AI Content Extraction Results`, {
+        reportType,
+        contentLength: content.length,
+        extractedRecommendations: recommendations,
+        extractedActions: actions,
+        summaryLength: summary.length,
+        // Show first 500 chars of content for debugging
+        contentPreview: content.substring(0, 500)
+      });
       
       const processingTime = Date.now() - startTime;
       const tokensUsed = completion.usage?.total_tokens || 0;
@@ -82,10 +97,16 @@ export class OpenAIReportService {
         processingTime,
         tokensUsed,
         model,
-        contentLength: content.length
+        contentLength: content.length,
+        recommendationsExtracted: recommendations.length,
+        actionsExtracted: actions.length,
+        hasRecommendations: recommendations.length > 0,
+        hasActions: actions.length > 0
       });
 
       return {
+        recommendations,
+        actions,
         content,
         summary,
         processingTime,
@@ -110,7 +131,7 @@ export class OpenAIReportService {
    * Build the prompt for OpenAI based on report type and insights
    */
   private buildPrompt(
-    insights: ReportInsights,
+    insights: StreamlinedInsights,
     reportType: string,
     customInstructions?: string
   ): string {
@@ -122,38 +143,23 @@ export class OpenAIReportService {
     - Date range: ${insights.dateRange.from} to ${insights.dateRange.to}
     - Sentiment: ${insights.sentimentBreakdown.positive} positive (${((insights.sentimentBreakdown.positive/insights.totalMentions)*100).toFixed(1)}%), ${insights.sentimentBreakdown.negative} negative (${((insights.sentimentBreakdown.negative/insights.totalMentions)*100).toFixed(1)}%), ${insights.sentimentBreakdown.neutral} neutral (${((insights.sentimentBreakdown.neutral/insights.totalMentions)*100).toFixed(1)}%)
     - Average sentiment confidence: ${insights.sentimentBreakdown.avgConfidence.toFixed(2)}
-    - High priority issues: ${insights.priorityBreakdown.high}
-    - Average urgency score: ${insights.priorityBreakdown.avgUrgency.toFixed(2)}
-    - Unique contributors: ${insights.uniqueAuthors}
     
-    TOP CATEGORIES: ${JSON.stringify(insights.topCategories, null, 2)}
     TOP TOPICS: ${JSON.stringify(insights.topTopics, null, 2)}
     TOP SOURCE TYPES: ${JSON.stringify(insights.topSourceTypes, null, 2)}
-
-    ${insights.highPriorityMentions.length > 0 ? `
-    HIGH PRIORITY MENTIONS:
-    ${insights.highPriorityMentions.map(m => `- "${m.content.substring(0, 150)}..." (${m.source_type}, ${m.sentiment}, urgency: ${m.max_urgency_score})`).join('\n')}
-    ` : ''}
-
-    ${insights.positiveMentions.length > 0 ? `
-    POSITIVE HIGHLIGHTS:
-    ${insights.positiveMentions.map(m => `- "${m.content.substring(0, 150)}..." (${m.source_type}, confidence: ${m.sentiment_confidence})`).join('\n')}
-    ` : ''}
-
-    ${insights.negativeMentions.length > 0 ? `
-    NEGATIVE CONCERNS:
-    ${insights.negativeMentions.map(m => `- "${m.content.substring(0, 150)}..." (${m.source_type}, confidence: ${m.sentiment_confidence})`).join('\n')}
-    ` : ''}
 
     DATA QUALITY NOTES:
     - Only tags with ≥${insights.confidenceThresholds.tags} confidence included
     - Only topics with ≥${insights.confidenceThresholds.topics} confidence included
+    
+    FOCUS: Since this analysis is based on aggregated data and top-level insights, please focus on strategic recommendations and actionable insights rather than individual mention details.
     `;
 
     const reportInstructions = this.getReportTypeInstructions(reportType);
     const customSection = customInstructions ? `\n\nADDITIONAL REQUIREMENTS:\n${customInstructions}` : '';
+    
+    const formatReminder = `\n\nIMPORTANT: Always include properly formatted Recommendations and/or Actions sections using bullet points (•) as shown in the instructions above. These sections are critical for the report functionality.`;
 
-    return baseContext + reportInstructions + customSection;
+    return baseContext + reportInstructions + customSection + formatReminder;
   }
 
   /**
@@ -185,7 +191,12 @@ export class OpenAIReportService {
         - Brand health status with clear metrics and trends
         - Critical issues requiring immediate attention (if any)
         - Key opportunities and positive momentum to leverage
-        - 3-4 specific strategic recommendations with expected outcomes
+        - MUST INCLUDE: Strategic Recommendations section formatted as:
+          ## Recommendations
+          • [Specific actionable recommendation 1]
+          • [Specific actionable recommendation 2]
+          • [Specific actionable recommendation 3]
+          • [Specific actionable recommendation 4]
         - Competitive positioning insights (if applicable)
         
         Format with clear sections, bullet points, and specific metrics. Keep language executive-friendly and action-oriented.`,
@@ -196,7 +207,12 @@ export class OpenAIReportService {
         - Topic-sentiment correlations and what drives positive/negative feelings
         - Author influence analysis and engagement patterns
         - Sentiment confidence analysis and data quality insights
-        - Specific recommendations for sentiment improvement
+        - MUST INCLUDE: Recommendations section formatted as:
+          ## Recommendations
+          • [Specific step to improve sentiment 1]
+          • [Specific step to improve sentiment 2]
+          • [Specific step to improve sentiment 3]
+          • [Specific step to improve sentiment 4]
         - Anomalies or unexpected sentiment patterns
         
         Provide psychological insights into brand perception and emotional triggers.`,
@@ -207,7 +223,12 @@ export class OpenAIReportService {
         - Share of voice analysis and competitive gaps
         - Competitive strengths and weaknesses identification
         - Emerging threats and opportunities in the competitive landscape
-        - Strategic recommendations for competitive advantage
+        - MUST INCLUDE: Strategic Recommendations section formatted as:
+          ## Recommendations
+          • [Specific competitive advantage recommendation 1]
+          • [Specific competitive advantage recommendation 2]
+          • [Specific competitive advantage recommendation 3]
+          • [Specific competitive advantage recommendation 4]
         - Market trends that affect competitive positioning
         
         Be specific about competitive dynamics and strategic implications.`,
@@ -218,7 +239,12 @@ export class OpenAIReportService {
         - Priority distribution and urgency patterns by category
         - Category-specific trends and anomalies
         - Intent analysis and what drives different customer behaviors
-        - Specific action items and recommendations for each major category
+        - MUST INCLUDE: Recommendations section formatted as:
+          ## Recommendations
+          • [Category-specific optimization recommendation 1]
+          • [Category-specific optimization recommendation 2]
+          • [Category-specific optimization recommendation 3]
+          • [Category-specific optimization recommendation 4]
         - Cross-category insights and optimization opportunities
         
         Provide category-specific actionable recommendations.`,
@@ -227,9 +253,18 @@ export class OpenAIReportService {
         Create a crisis alert report focusing on:
         - Immediate threats requiring urgent response (if any)
         - Escalation risk assessment and timeline
-        - Specific response recommendations with priorities
+        - MUST INCLUDE: Immediate Actions section formatted as:
+          ## Actions
+          • [Immediate action with timeline 1]
+          • [Immediate action with timeline 2]
+          • [Immediate action with timeline 3]
+          • [Immediate action with timeline 4]
+        - MUST INCLUDE: Recommendations section formatted as:
+          ## Recommendations
+          • [Strategic crisis management recommendation 1]
+          • [Strategic crisis management recommendation 2]
+          • [Strategic crisis management recommendation 3]
         - Stakeholder notification requirements
-        - Crisis mitigation strategies and action plans
         - Monitoring recommendations for ongoing situation management
         
         Use urgent, clear language with specific timelines and action items. If no crisis exists, explain the current stability.`,
@@ -241,7 +276,12 @@ export class OpenAIReportService {
         - Predictive insights about future developments
         - Seasonal patterns and cyclical behaviors
         - Opportunity identification from trend analysis
-        - Strategic recommendations for trend capitalization
+        - MUST INCLUDE: Strategic Recommendations section formatted as:
+          ## Recommendations
+          • [Trend capitalization recommendation 1]
+          • [Trend capitalization recommendation 2]
+          • [Trend capitalization recommendation 3]
+          • [Trend capitalization recommendation 4]
         
         Focus on forward-looking insights and strategic implications.`
     };
@@ -268,6 +308,136 @@ export class OpenAIReportService {
 
     // Fallback: use first 300 characters
     return content.substring(0, 300).trim() + (content.length > 300 ? '...' : '');
+  }
+
+  /**
+   * Extract recommendations from AI-generated content
+   */
+  private extractRecommendations(content: string, reportType: string): string[] {
+    const recommendations: string[] = [];
+
+    // Look for recommendations sections with various headers including markdown format
+    const recommendationPatterns = [
+      /##\s*Recommendations?\s*\n((?:[•\-*]\s*.+\n?)+)/gi,
+      /(?:Recommendations?|Strategic Recommendations?|Action Items?|Next Steps?)[\s:]*\n((?:[•\-*]\s*.+\n?)+)/gi,
+      /(?:Key Recommendations?|Priority Actions?|Strategic Actions?)[\s:]*\n((?:[•\-*]\s*.+\n?)+)/gi,
+      /(?:\d+\.\s*(?:Recommendations?|Actions?|Steps?))[\s\S]*?(?=\n\d+\.|\n\n|\n#|$)/gi
+    ];
+
+    for (const pattern of recommendationPatterns) {
+      const matches = content.matchAll(pattern);
+      for (const match of matches) {
+        if (match[1]) {
+          // Extract individual bullet points
+          const bulletPoints = match[1]
+            .split('\n')
+            .map(line => line.replace(/^[•\-*]\s*/, '').trim())
+            .filter(line => line.length > 10);
+          
+          recommendations.push(...bulletPoints);
+        } else if (match[0]) {
+          // Extract full matched text and clean it
+          const cleanText = match[0]
+            .replace(/^(?:Key Recommendations?|Strategic Recommendations?|Recommendations?|Action Items?|Next Steps?)[\s:]*\n?/i, '')
+            .trim();
+          
+          if (cleanText.length > 20) {
+            recommendations.push(cleanText);
+          }
+        }
+      }
+    }
+
+    // Also look for numbered lists that might be recommendations
+    const numberedPatterns = [
+      /\d+\.\s*(?:Implement|Develop|Create|Focus|Improve|Address|Monitor|Review|Consider|Evaluate|Establish).+?(?=\n\d+\.|\n\n|$)/gi
+    ];
+
+    for (const pattern of numberedPatterns) {
+      const matches = content.matchAll(pattern);
+      for (const match of matches) {
+        const cleanText = match[0].replace(/^\d+\.\s*/, '').trim();
+        if (cleanText.length > 20 && !recommendations.some(r => r.includes(cleanText.substring(0, 50)))) {
+          recommendations.push(cleanText);
+        }
+      }
+    }
+
+    // Remove duplicates and clean up
+    const uniqueRecommendations = [...new Set(recommendations)]
+      .map(r => r.replace(/\s+/g, ' ').trim())
+      .filter(r => r.length > 15)
+      .slice(0, 10); // Limit to 10 recommendations
+
+    return uniqueRecommendations;
+  }
+
+  /**
+   * Extract actionable steps/actions from AI-generated content
+   */
+  private extractActions(content: string, reportType: string): string[] {
+    const actions: string[] = [];
+
+    // Look for immediate actions, urgent steps, crisis responses including markdown format
+    const actionPatterns = [
+      /##\s*Actions?\s*\n((?:[•\-*]\s*.+\n?)+)/gi,
+      /(?:Immediate Actions?|Urgent Steps?|Priority Actions?|Action Plan)[\s:]*\n((?:[•\-*]\s*.+\n?)+)/gi,
+      /(?:Crisis Response|Immediate Response|Next Steps?)[\s:]*\n((?:[•\-*]\s*.+\n?)+)/gi,
+    ];
+
+    for (const pattern of actionPatterns) {
+      const matches = content.matchAll(pattern);
+      for (const match of matches) {
+        if (match[1]) {
+          const bulletPoints = match[1]
+            .split('\n')
+            .map(line => line.replace(/^[•\-*]\s*/, '').trim())
+            .filter(line => line.length > 10);
+          
+          actions.push(...bulletPoints);
+        }
+      }
+    }
+
+    // For crisis reports, extract timeline-based actions
+    if (reportType === 'crisis-alert') {
+      const timelinePatterns = [
+        /(?:Within|Next|Immediate|24 hours?|48 hours?|This week).*?(?=\n|$)/gi
+      ];
+
+      for (const pattern of timelinePatterns) {
+        const matches = content.matchAll(pattern);
+        for (const match of matches) {
+          const actionText = match[0].trim();
+          if (actionText.length > 20 && !actions.some(a => a.includes(actionText.substring(0, 30)))) {
+            actions.push(actionText);
+          }
+        }
+      }
+    }
+
+    // Extract verb-based action items
+    const verbPatterns = [
+      /(?:^|\n)[-*•]?\s*(?:Monitor|Track|Review|Investigate|Contact|Schedule|Update|Alert|Notify|Escalate|Implement|Execute).+?(?=\n|$)/gim
+    ];
+
+    for (const pattern of verbPatterns) {
+      const matches = content.matchAll(pattern);
+      for (const match of matches) {
+        const cleanText = match[0].replace(/^[-*•]\s*/, '').trim();
+        if (cleanText.length > 15 && !actions.some(a => a.includes(cleanText.substring(0, 30)))) {
+          actions.push(cleanText);
+        }
+      }
+    }
+
+    // Remove duplicates and clean up
+    const uniqueActions = [...new Set(actions)]
+      .map(a => a.replace(/\s+/g, ' ').trim())
+      .filter(a => a.length > 10)
+      .slice(0, 8); // Limit to 8 actions
+
+    return uniqueActions;
   }
 
   /**

@@ -168,43 +168,49 @@
 {{/if}}
 
 <div class="report-section">
-    <h2 class="section-title">Sample Sentiment Analysis</h2>
+    <h2 class="section-title">AI-Generated Sentiment Insights</h2>
     <div class="section-content">
-        <h3 style="margin: 20px 0 10px 0; font-size: 16px;">Highly Positive Examples</h3>
-        {{#each positiveExamples}}
-        <div class="mention-sample" style="border-left-color: #059669;">
-            "{{this.content}}"
-            <div class="mention-meta">
-                {{this.source_type}} • Confidence: {{this.sentiment_confidence}} • {{this.author_followers}} followers
-            </div>
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+            <h3 style="margin-bottom: 15px; font-size: 16px;">Key Sentiment Patterns</h3>
+            <p>{{aiGeneratedSentimentSummary}}</p>
         </div>
-        {{/each}}
 
-        <h3 style="margin: 20px 0 10px 0; font-size: 16px;">Concerning Negative Examples</h3>
-        {{#each negativeExamples}}
-        <div class="mention-sample" style="border-left-color: #dc2626;">
-            "{{this.content}}"
-            <div class="mention-meta">
-                {{this.source_type}} • Confidence: {{this.sentiment_confidence}} • Priority: {{this.max_priority}}
-            </div>
+        <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+            <h4 style="color: #059669; margin-bottom: 10px;">✅ Positive Sentiment Drivers</h4>
+            <p>{{aiGeneratedEmotionalDrivers}}</p>
         </div>
-        {{/each}}
+
+        <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+            <h4 style="color: #dc2626; margin-bottom: 10px;">⚠️ Areas for Improvement</h4>
+            <p>Based on negative sentiment analysis, focus areas have been identified for strategic improvement and response planning.</p>
+        </div>
     </div>
 </div>
 
-<div class="report-section">
-    <h2 class="section-title">Sentiment Improvement Recommendations</h2>
-    <div class="section-content">
-        <div>{{aiGeneratedSentimentRecommendations}}</div>
-        
-        <ul class="insights-list">
-            {{#each sentimentActionItems}}
-            <li style="border-left: 4px solid {{this.priorityColor}};">
-                <strong>{{this.action}}</strong>
-                <br>{{this.description}}
-                <br><small>Priority: {{this.priority}} • Expected Impact: {{this.expectedImpact}}</small>
-            </li>
-            {{/each}}
-        </ul>
-    </div>
+{{#if recommendations}}
+<div class="recommendations-section">
+    <h2 class="recommendations-title">Sentiment Improvement Recommendations</h2>
+    <ul class="recommendations-list">
+        {{#each recommendations}}
+        <li class="recommendation-item">
+            {{this}}
+            <span class="recommendation-priority priority-important">Sentiment Strategy</span>
+        </li>
+        {{/each}}
+    </ul>
 </div>
+{{/if}}
+
+{{#if actions}}
+<div class="recommendations-section">
+    <h2 class="recommendations-title">Immediate Sentiment Actions</h2>
+    <ul class="recommendations-list">
+        {{#each actions}}
+        <li class="recommendation-item">
+            {{this}}
+            <span class="recommendation-priority priority-critical">Urgent Response</span>
+        </li>
+        {{/each}}
+    </ul>
+</div>
+{{/if}}

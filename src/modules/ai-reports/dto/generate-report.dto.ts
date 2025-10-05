@@ -12,8 +12,9 @@ export enum ReportType {
 
 export class GenerateReportDto {
   @ApiProperty({
-    enum: ReportType,
-    description: 'Type of report to generate'
+    enum: Object.values(ReportType),
+    description: 'Type of report to generate',
+    example: ReportType.EXECUTIVE_SUMMARY
   })
   @IsEnum(ReportType)
   reportType: ReportType;
@@ -103,4 +104,39 @@ export class GenerateReportDto {
   @IsOptional()
   @IsBoolean()
   automated?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Custom instructions for AI report generation'
+  })
+  @IsOptional()
+  @IsString()
+  customInstructions?: string;
+
+  @ApiPropertyOptional({
+    description: 'Export formats for the report (PDF generation moved to frontend)',
+    type: [String],
+    example: ['json', 'csv', 'excel'],
+    default: ['json']
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  formats?: string[];
+}
+
+export enum ExportFormat {
+  PDF = 'pdf',
+  EXCEL = 'excel',
+  CSV = 'csv',
+  HTML = 'html'
+}
+
+export class ExportReportDto {
+  @ApiProperty({
+    enum: Object.values(ExportFormat),
+    description: 'Export format for the report',
+    example: ExportFormat.HTML
+  })
+  @IsEnum(ExportFormat)
+  format: ExportFormat;
 }

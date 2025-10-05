@@ -208,42 +208,30 @@
     </div>
 </div>
 
-<div class="report-section">
-    <h2 class="section-title">Strategic Recommendations</h2>
-    <div class="section-content">
-        <div>{{aiGeneratedStrategicRecommendations}}</div>
-        
-        <h3 style="margin: 20px 0 10px 0; font-size: 16px;">🎯 Immediate Actions (0-30 days)</h3>
-        <ul class="insights-list">
-            {{#each immediateActions}}
-            <li style="border-left-color: #dc2626;">
-                <strong>{{this.action}}</strong>
-                <br>{{this.description}}
-                <br><small>Expected Outcome: {{this.expectedOutcome}}</small>
-            </li>
-            {{/each}}
-        </ul>
-
-        <h3 style="margin: 20px 0 10px 0; font-size: 16px;">📈 Medium-term Strategy (30-90 days)</h3>
-        <ul class="insights-list">
-            {{#each mediumTermActions}}
-            <li style="border-left-color: #f59e0b;">
-                <strong>{{this.action}}</strong>
-                <br>{{this.description}}
-                <br><small>Expected Outcome: {{this.expectedOutcome}}</small>
-            </li>
-            {{/each}}
-        </ul>
-
-        <h3 style="margin: 20px 0 10px 0; font-size: 16px;">🚀 Long-term Positioning (90+ days)</h3>
-        <ul class="insights-list">
-            {{#each longTermActions}}
-            <li style="border-left-color: #059669;">
-                <strong>{{this.action}}</strong>
-                <br>{{this.description}}
-                <br><small>Expected Outcome: {{this.expectedOutcome}}</small>
-            </li>
-            {{/each}}
-        </ul>
-    </div>
+{{#if recommendations}}
+<div class="recommendations-section">
+    <h2 class="recommendations-title">Strategic Competitive Recommendations</h2>
+    <ul class="recommendations-list">
+        {{#each recommendations}}
+        <li class="recommendation-item">
+            {{this}}
+            <span class="recommendation-priority priority-important">Competitive Strategy</span>
+        </li>
+        {{/each}}
+    </ul>
 </div>
+{{/if}}
+
+{{#if actions}}
+<div class="recommendations-section">
+    <h2 class="recommendations-title">Immediate Competitive Actions</h2>
+    <ul class="recommendations-list">
+        {{#each actions}}
+        <li class="recommendation-item">
+            {{this}}
+            <span class="recommendation-priority priority-critical">Market Response</span>
+        </li>
+        {{/each}}
+    </ul>
+</div>
+{{/if}}

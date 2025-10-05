@@ -126,12 +126,33 @@
 </div>
 {{/if}}
 
-<div class="report-section">
-    <h2 class="section-title">Strategic Recommendations</h2>
-    <div class="section-content">
-        <div>{{aiGeneratedRecommendations}}</div>
-    </div>
+{{#if recommendations}}
+<div class="recommendations-section">
+    <h2 class="recommendations-title">Strategic Recommendations</h2>
+    <ul class="recommendations-list">
+        {{#each recommendations}}
+        <li class="recommendation-item">
+            {{this}}
+            <span class="recommendation-priority priority-important">Executive Action</span>
+        </li>
+        {{/each}}
+    </ul>
 </div>
+{{/if}}
+
+{{#if actions}}
+<div class="recommendations-section">
+    <h2 class="recommendations-title">Immediate Action Items</h2>
+    <ul class="recommendations-list">
+        {{#each actions}}
+        <li class="recommendation-item">
+            {{this}}
+            <span class="recommendation-priority priority-critical">Action Required</span>
+        </li>
+        {{/each}}
+    </ul>
+</div>
+{{/if}}
 
 <div class="report-section">
     <h2 class="section-title">Priority Distribution</h2>
