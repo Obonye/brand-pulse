@@ -1,0 +1,178 @@
+<!-- Trend Analysis Report Template -->
+<div class="report-section">
+    <h2 class="section-title">Trend Analysis Overview</h2>
+    <div class="section-content">
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-value">{{totalMentions}}</div>
+                <div class="metric-label">Total Mentions</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value positive">{{sentimentPositivePercent}}%</div>
+                <div class="metric-label">Positive Sentiment</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value">{{uniqueAuthors}}</div>
+                <div class="metric-label">Contributors</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value {{#if avgUrgencyScore}}warning{{else}}positive{{/if}}">{{number avgUrgencyScore}}</div>
+                <div class="metric-label">Avg Urgency</div>
+            </div>
+        </div>
+
+        <p class="ai-insight"><strong>{{aiGeneratedOverview}}</strong></p>
+    </div>
+</div>
+
+<div class="report-section">
+    <h2 class="section-title">Sentiment Trends</h2>
+    <div class="section-content">
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-value positive">{{sentimentPositive}}</div>
+                <div class="metric-label">Positive Mentions</div>
+                <div class="metric-trend">{{sentimentPositivePercent}}% of total</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value negative">{{sentimentNegative}}</div>
+                <div class="metric-label">Negative Mentions</div>
+                <div class="metric-trend">{{sentimentNegativePercent}}% of total</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value neutral">{{sentimentNeutral}}</div>
+                <div class="metric-label">Neutral Mentions</div>
+                <div class="metric-trend">{{sentimentNeutralPercent}}% of total</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value">{{percentage avgSentimentConfidence 1}}%</div>
+                <div class="metric-label">Confidence Score</div>
+                <div class="metric-trend">Analysis reliability</div>
+            </div>
+        </div>
+
+        <div class="chart-placeholder">
+            <h4>Sentiment Trend Analysis</h4>
+            <p class="chart-description">Sentiment distribution across the analyzed period shows {{sentimentPositivePercent}}% positive, {{sentimentNegativePercent}}% negative, and {{sentimentNeutralPercent}}% neutral mentions.</p>
+        </div>
+    </div>
+</div>
+
+<div class="report-section">
+    <h2 class="section-title">Topic & Category Trends</h2>
+    <div class="section-content">
+        {{#if topTopics}}
+        <div class="trend-list">
+            <h4>Trending Topics</h4>
+            <div class="trend-items">
+                {{#each topTopics}}
+                <div class="trend-item">
+                    <span class="trend-name">{{this.topic}}</span>
+                    <span class="trend-count">{{number this.count}} mentions</span>
+                    <span class="trend-percentage">{{percentage this.count ../totalMentions}}%</span>
+                </div>
+                {{/each}}
+            </div>
+        </div>
+        {{/if}}
+
+        {{#if topSourceTypes}}
+        <div class="trend-list">
+            <h4>Source Platform Trends</h4>
+            <div class="trend-items">
+                {{#each topSourceTypes}}
+                <div class="trend-item">
+                    <span class="trend-name">{{this.source_type}}</span>
+                    <span class="trend-count">{{number this.count}} mentions</span>
+                    <span class="trend-percentage">{{percentage this.count ../totalMentions}}%</span>
+                </div>
+                {{/each}}
+            </div>
+        </div>
+        {{/if}}
+    </div>
+</div>
+
+<div class="report-section">
+    <h2 class="section-title">Trend Insights & Patterns</h2>
+    <div class="section-content">
+        <div class="insight-box">
+            <h4>Key Trends Identified</h4>
+            <ul class="trend-insights">
+                {{#if recommendations}}
+                    {{#each recommendations}}
+                    <li class="trend-insight">{{this}}</li>
+                    {{/each}}
+                {{else}}
+                <li class="trend-insight">Sentiment patterns show {{#if (gt sentimentPositivePercent 50)}}positive{{else}}mixed{{/if}} brand perception trends</li>
+                <li class="trend-insight">{{topTopics.length}} primary topics are driving conversation volume</li>
+                <li class="trend-insight">Platform distribution across {{topSourceTypes.length}} main channels indicates {{#if (gt topSourceTypes.0.count 100)}}strong{{else}}moderate{{/if}} engagement</li>
+                {{/if}}
+            </ul>
+        </div>
+
+        {{#if actions}}
+        <div class="action-box">
+            <h4>Recommended Actions</h4>
+            <ul class="action-items">
+                {{#each actions}}
+                <li class="action-item">{{this}}</li>
+                {{/each}}
+            </ul>
+        </div>
+        {{/if}}
+
+        <div class="forecast-box">
+            <h4>Trend Forecast</h4>
+            <p class="forecast-text">
+                Based on current patterns, sentiment trends are
+                {{#if (gt sentimentPositivePercent 60)}}
+                expected to remain positive with continued brand strength.
+                {{else if (gt sentimentNegativePercent 30)}}
+                showing concerning patterns that require immediate attention.
+                {{else}}
+                indicating stable brand perception with monitoring recommended.
+                {{/if}}
+                {{#if topTopics}}
+                Key topics like "{{topTopics.0.topic}}" will likely continue driving engagement.
+                {{/if}}
+            </p>
+        </div>
+    </div>
+</div>
+
+<div class="report-section">
+    <h2 class="section-title">Time Period Analysis</h2>
+    <div class="section-content">
+        <div class="time-analysis">
+            <div class="time-metric">
+                <span class="time-label">Analysis Period:</span>
+                <span class="time-value">{{dateRange.from}} to {{dateRange.to}}</span>
+            </div>
+            <div class="time-metric">
+                <span class="time-label">Data Points:</span>
+                <span class="time-value">{{totalMentions}} mentions analyzed</span>
+            </div>
+            <div class="time-metric">
+                <span class="time-label">Confidence Level:</span>
+                <span class="time-value">{{percentage avgSentimentConfidence 1}}%</span>
+            </div>
+        </div>
+
+        <div class="trend-summary">
+            <h4>Period Summary</h4>
+            <p>
+                During this analysis period, we observed {{totalMentions}} brand mentions with
+                {{sentimentPositivePercent}}% positive sentiment.
+                {{#if (gt sentimentNegativePercent 20)}}
+                The {{sentimentNegativePercent}}% negative sentiment requires attention and monitoring.
+                {{else}}
+                Negative sentiment remains manageable at {{sentimentNegativePercent}}%.
+                {{/if}}
+                {{#if topTopics}}
+                Primary conversation drivers include {{topTopics.0.topic}}{{#if topTopics.1}}, {{topTopics.1.topic}}{{/if}}{{#if topTopics.2}}, and {{topTopics.2.topic}}{{/if}}.
+                {{/if}}
+            </p>
+        </div>
+    </div>
+</div>

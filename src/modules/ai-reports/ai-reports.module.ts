@@ -10,6 +10,7 @@ import { ReportGeneratorService } from './services/report-generator.service';
 import { ReportDataService } from './services/report-data.service';
 import { OpenAIReportService } from './services/openai-report.service';
 import { ReportExportService } from './services/report-export.service';
+import { PdfGeneratorService } from './services/pdf-generator.service';
 import { ScheduledReportsService } from './services/scheduled-reports.service';
 
 // Shared modules
@@ -32,6 +33,7 @@ import { SupabaseModule } from '../shared/supabase/supabase.module';
     
     // Export and scheduling services
     ReportExportService,
+    PdfGeneratorService,
     ScheduledReportsService,
   ],
   exports: [

@@ -1,9 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as XLSX from 'xlsx';
-import { reportTemplateEngine } from '../report_templates/template-engine';
+import { PdfGeneratorService } from './pdf-generator.service';
 
 export interface ExportOptions {
-  format: 'json' | 'xlsx' | 'csv' | 'html';
+  format: 'json' | 'xlsx' | 'csv' | 'html' | 'pdf';
   includeCharts?: boolean;
   includeRawData?: boolean;
 }
@@ -19,10 +19,12 @@ export interface ExportResult {
 export class ReportExportService {
   private readonly logger = new Logger(ReportExportService.name);
 
-  constructor() {}
+  constructor(
+    private readonly pdfGenerator: PdfGeneratorService,
+  ) {}
 
   /**
-   * Export report in specified format (JSON, Excel, CSV only)
+   * Export report in specified format (JSON, Excel, CSV, HTML, PDF)
    */
   async exportReport(
     reportType: string,
@@ -49,7 +51,10 @@ export class ReportExportService {
         
         case 'html':
           return await this.exportToHtml(reportType, reportData, metadata);
-        
+
+        case 'pdf':
+          return await this.exportToPdf(reportType, reportData, metadata);
+
         default:
           throw new Error(`Unsupported export format: ${options.format}`);
       }
@@ -404,27 +409,8 @@ export class ReportExportService {
         confidenceThreshold: metadata.confidenceThreshold || 0.7
       };
 
-      // Try to render the HTML using the template engine
-      let renderedHtml: string;
-      
-      try {
-        // Transform the data to match template expectations
-        const templateData = this.transformDataForTemplate(reportType, reportData, metadata);
-        
-        renderedHtml = reportTemplateEngine.renderReport(
-          reportType,
-          templateData,
-          templateMetadata
-        );
-      } catch (templateError) {
-        this.logger.warn(`Template rendering failed, falling back to simple HTML`, {
-          error: templateError.message,
-          reportType
-        });
-        
-        // Fallback to simple HTML rendering
-        renderedHtml = this.generateSimpleHtml(reportType, reportData, templateMetadata);
-      }
+      // Generate simple HTML directly without template engine dependency
+      const renderedHtml = this.generateSimpleHtml(reportType, reportData, templateMetadata);
 
       // Generate filename
       const filename = this.generateFilename(reportType, metadata.title, 'html');
@@ -443,6 +429,67 @@ export class ReportExportService {
         metadata
       });
       throw new Error(`HTML export failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Export report to PDF format
+   */
+  private async exportToPdf(
+    reportType: string,
+    reportData: any,
+    metadata: any
+  ): Promise<ExportResult> {
+    try {
+      // Prepare template metadata
+      const templateMetadata = {
+        title: metadata.title || `${reportType} Report`,
+        subtitle: metadata.subtitle || `Generated ${new Date().toLocaleDateString()}`,
+        dateRange: metadata.dateRange || 'All time',
+        generatedAt: metadata.generatedAt || new Date().toISOString(),
+        confidenceThreshold: metadata.confidenceThreshold || 0.7,
+        recommendations: metadata.recommendations || [],
+        actions: metadata.actions || []
+      };
+
+      // Transform the data to match template expectations
+      const templateData = this.transformDataForTemplate(reportType, reportData, metadata);
+
+      // Generate PDF using the PDF generator service
+      const pdfBuffer = await this.pdfGenerator.generateReportPdf(
+        reportType,
+        templateData,
+        templateMetadata,
+        {
+          format: 'A4',
+          orientation: 'portrait',
+          margin: {
+            top: '1in',
+            right: '0.75in',
+            bottom: '1in',
+            left: '0.75in'
+          },
+          displayHeaderFooter: true,
+          scale: 0.8
+        }
+      );
+
+      // Generate filename
+      const filename = this.generateFilename(reportType, metadata.title, 'pdf');
+
+      return {
+        buffer: pdfBuffer,
+        filename,
+        mimeType: 'application/pdf',
+        size: pdfBuffer.length
+      };
+    } catch (error) {
+      this.logger.error(`Failed to generate PDF export`, {
+        error: error.message,
+        reportType,
+        metadata
+      });
+      throw new Error(`PDF export failed: ${error.message}`);
     }
   }
 

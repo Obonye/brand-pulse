@@ -287,8 +287,13 @@ export class AiReportsController {
         );
         break;
       case ExportFormat.PDF:
-        // PDF export not implemented in service yet
-        throw new BadRequestException('PDF export is not currently supported');
+        exportResult = await this.reportExport.exportReport(
+          report.report_type,
+          fullReportData,
+          metadata,
+          { format: 'pdf' }
+        );
+        break;
       default:
         throw new BadRequestException(`Unsupported export format: ${exportDto.format}`);
     }
@@ -402,8 +407,13 @@ export class AiReportsController {
         break;
       case ExportFormat.PDF:
       case 'pdf':
-        // PDF export not implemented in service yet
-        throw new BadRequestException('PDF export is not currently supported');
+        exportResult = await this.reportExport.exportReport(
+          report.report_type,
+          fullReportData,
+          metadata,
+          { format: 'pdf' }
+        );
+        break;
       default:
         throw new BadRequestException(`Unsupported format: ${format}`);
     }

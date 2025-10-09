@@ -141,6 +141,161 @@
             border-left: 4px solid #2563eb;
         }
 
+        /* Additional trend styles */
+        .trend-list {
+            margin: 20px 0;
+        }
+
+        .trend-items {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .trend-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f8fafc;
+            padding: 12px 16px;
+            border-radius: 6px;
+            border-left: 4px solid #2563eb;
+        }
+
+        .trend-name {
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .trend-count {
+            color: #6b7280;
+            font-size: 12px;
+        }
+
+        .trend-percentage {
+            font-weight: 600;
+            color: #2563eb;
+        }
+
+        /* Insight boxes */
+        .insight-box, .action-box, .forecast-box {
+            background: #f0f9ff;
+            border: 1px solid #0ea5e9;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .insight-box h4, .action-box h4, .forecast-box h4 {
+            color: #0c4a6e;
+            margin-bottom: 12px;
+            font-size: 16px;
+        }
+
+        .trend-insights, .action-items {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .trend-insight, .action-item {
+            background: rgba(255, 255, 255, 0.7);
+            border: 1px solid #bae6fd;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 8px;
+            position: relative;
+        }
+
+        .trend-insight::before, .action-item::before {
+            content: "•";
+            color: #0ea5e9;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+
+        .forecast-text {
+            color: #0c4a6e;
+            line-height: 1.6;
+        }
+
+        /* Time analysis styles */
+        .time-analysis {
+            background: #f9fafb;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+        }
+
+        .time-metric {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .time-metric:last-child {
+            border-bottom: none;
+        }
+
+        .time-label {
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .time-value {
+            color: #6b7280;
+        }
+
+        .trend-summary {
+            margin-top: 20px;
+            padding: 16px;
+            background: #fffbeb;
+            border-radius: 6px;
+            border-left: 4px solid #f59e0b;
+        }
+
+        .trend-summary h4 {
+            color: #92400e;
+            margin-bottom: 8px;
+        }
+
+        .trend-summary p {
+            color: #78350f;
+            line-height: 1.6;
+        }
+
+        /* AI insight styling */
+        .ai-insight {
+            background: #eff6ff;
+            border: 1px solid #3b82f6;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+            color: #1e40af;
+            font-style: italic;
+        }
+
+        /* Metric trend styling */
+        .metric-trend {
+            font-size: 11px;
+            color: #6b7280;
+            margin-top: 4px;
+            display: block;
+        }
+
+        /* Warning color */
+        .warning {
+            color: #f59e0b;
+        }
+
+        /* Chart description */
+        .chart-description {
+            color: #6b7280;
+            font-style: italic;
+            margin: 8px 0;
+        }
+
         .mention-sample {
             background: #f9fafb;
             border: 1px solid #e5e7eb;

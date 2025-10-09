@@ -153,7 +153,8 @@ export class ReportTemplateEngine {
       'sentiment-intelligence',
       'competitive-analysis',
       'category-performance',
-      'crisis-alert'
+      'crisis-alert',
+      'trend-analysis'
     ];
 
       for (const templateName of reportTemplates) {
@@ -190,14 +191,21 @@ export class ReportTemplateEngine {
       confidenceThreshold: number;
     }
   ): string {
-    const reportTemplate = this.templates.get(reportType);
-    
+    let reportTemplate = this.templates.get(reportType);
+    let reportContent: string;
+
     if (!reportTemplate) {
-      throw new Error(`Template not found for report type: ${reportType}`);
+      console.warn(`Template not found for report type: ${reportType}, using fallback`);
+      reportContent = this.generateFallbackContent(reportType, data);
+    } else {
+      // Render the report-specific content
+      reportContent = reportTemplate(data);
     }
 
-    // Render the report-specific content
-    const reportContent = reportTemplate(data);
+    // If base template is not available, return simple HTML
+    if (!this.baseTemplate) {
+      return this.generateSimpleHtml(metadata.title, reportContent, metadata);
+    }
 
     // Render the complete HTML with base template
     const completeHtml = this.baseTemplate({
@@ -218,12 +226,112 @@ export class ReportTemplateEngine {
    */
   public renderReportContent(reportType: string, data: any): string {
     const reportTemplate = this.templates.get(reportType);
-    
+
     if (!reportTemplate) {
-      throw new Error(`Template not found for report type: ${reportType}`);
+      console.warn(`Template not found for report type: ${reportType}, using fallback`);
+      return this.generateFallbackContent(reportType, data);
     }
 
     return reportTemplate(data);
+  }
+
+  /**
+   * Generate fallback content when template is missing
+   */
+  private generateFallbackContent(reportType: string, data: any): string {
+    const metrics = [
+      { label: 'Total Mentions', value: data.totalMentions || 0 },
+      { label: 'Positive Sentiment', value: `${data.sentimentPositivePercent || 0}%` },
+      { label: 'Negative Sentiment', value: `${data.sentimentNegativePercent || 0}%` },
+      { label: 'Neutral Sentiment', value: `${data.sentimentNeutralPercent || 0}%` }
+    ];
+
+    return `
+      <div class="report-section">
+        <h2 class="section-title">${this.capitalizeReportType(reportType)}</h2>
+        <div class="section-content">
+          <div class="metrics-grid">
+            ${metrics.map(metric => `
+              <div class="metric-card">
+                <div class="metric-value">${metric.value}</div>
+                <div class="metric-label">${metric.label}</div>
+              </div>
+            `).join('')}
+          </div>
+
+          ${data.aiGeneratedOverview ? `<p class="ai-insight"><strong>${data.aiGeneratedOverview}</strong></p>` : ''}
+
+          ${data.recommendations && data.recommendations.length > 0 ? `
+            <div class="recommendations">
+              <h4>Key Recommendations</h4>
+              <ul>
+                ${data.recommendations.map(rec => `<li>${rec}</li>`).join('')}
+              </ul>
+            </div>
+          ` : ''}
+
+          ${data.topTopics && data.topTopics.length > 0 ? `
+            <div class="top-topics">
+              <h4>Top Topics</h4>
+              <ul>
+                ${data.topTopics.slice(0, 5).map(topic => `
+                  <li>${topic.topic || topic.name}: ${topic.count} mentions</li>
+                `).join('')}
+              </ul>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Generate simple HTML when base template is missing
+   */
+  private generateSimpleHtml(title: string, content: string, metadata: any): string {
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${title}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; color: #333; }
+        .header { border-bottom: 2px solid #e5e7eb; padding-bottom: 20px; margin-bottom: 30px; }
+        .report-section { margin: 30px 0; }
+        .section-title { color: #1f2937; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px; }
+        .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 20px 0; }
+        .metric-card { background: #f9fafb; padding: 20px; border-radius: 8px; text-align: center; border: 1px solid #e5e7eb; }
+        .metric-value { font-size: 2em; font-weight: bold; color: #1f2937; }
+        .metric-label { color: #6b7280; margin-top: 5px; font-size: 0.9em; }
+        .ai-insight { background: #eff6ff; padding: 15px; border-radius: 5px; border-left: 4px solid #3b82f6; }
+        .recommendations, .top-topics { margin: 20px 0; }
+        .recommendations h4, .top-topics h4 { color: #1f2937; }
+        ul { padding-left: 20px; }
+        li { margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>${title}</h1>
+        <p><strong>Generated:</strong> ${metadata.generatedAt}</p>
+        <p><strong>Date Range:</strong> ${metadata.dateRange}</p>
+    </div>
+    ${content}
+</body>
+</html>
+    `;
+  }
+
+  /**
+   * Capitalize and format report type for display
+   */
+  private capitalizeReportType(reportType: string): string {
+    return reportType
+      .split('-')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
   }
 
   /**
