@@ -455,6 +455,12 @@ export class ReportExportService {
       // Transform the data to match template expectations
       const templateData = this.transformDataForTemplate(reportType, reportData, metadata);
 
+      // Check if PDF generation is available first
+      const pdfStats = this.pdfGenerator.getStats();
+      if (pdfStats.browserInitializationFailed) {
+        throw new Error('PDF generation is not available in this environment - Chrome/Chromium not found. Please try exporting as HTML or another format.');
+      }
+
       // Generate PDF using the PDF generator service
       const pdfBuffer = await this.pdfGenerator.generateReportPdf(
         reportType,

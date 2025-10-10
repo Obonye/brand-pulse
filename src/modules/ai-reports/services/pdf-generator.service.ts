@@ -21,15 +21,22 @@ export interface PdfOptions {
 export class PdfGeneratorService {
   private readonly logger = new Logger(PdfGeneratorService.name);
   private browser: puppeteer.Browser | null = null;
+  private browserInitialized = false;
+  private browserInitializationFailed = false;
 
   constructor() {
-    this.initializeBrowser();
+    // Don't initialize browser in constructor to prevent startup crashes
+    // Initialize on first use instead
   }
 
   /**
    * Initialize Puppeteer browser instance
    */
   private async initializeBrowser(): Promise<void> {
+    if (this.browserInitialized || this.browserInitializationFailed) {
+      return;
+    }
+
     try {
       this.browser = await puppeteer.launch({
         headless: true,
@@ -46,10 +53,12 @@ export class PdfGeneratorService {
         ],
         timeout: 30000
       });
+      this.browserInitialized = true;
       this.logger.log('Puppeteer browser initialized successfully');
     } catch (error) {
-      this.logger.error('Failed to initialize Puppeteer browser', error);
-      throw error;
+      this.browserInitializationFailed = true;
+      this.logger.warn('Failed to initialize Puppeteer browser - PDF generation will be unavailable', error.message);
+      // Don't throw error to prevent application crash
     }
   }
 
@@ -71,6 +80,11 @@ export class PdfGeneratorService {
     options: PdfOptions = {}
   ): Promise<Buffer> {
     try {
+      // Check if PDF generation is available
+      if (this.browserInitializationFailed) {
+        throw new Error('PDF generation is not available - Puppeteer browser failed to initialize');
+      }
+
       // Generate simple HTML directly
       const html = this.generateReportHtml(reportType, reportData, metadata);
 
@@ -86,8 +100,13 @@ export class PdfGeneratorService {
    * Generate PDF from HTML string
    */
   async generatePdfFromHtml(html: string, options: PdfOptions = {}): Promise<Buffer> {
-    if (!this.browser) {
+    // Initialize browser if not already done
+    if (!this.browserInitialized && !this.browserInitializationFailed) {
       await this.initializeBrowser();
+    }
+
+    if (this.browserInitializationFailed || !this.browser) {
+      throw new Error('PDF generation is not available - Puppeteer browser is not initialized');
     }
 
     let page: puppeteer.Page | null = null;
@@ -207,14 +226,20 @@ export class PdfGeneratorService {
     const errors: string[] = [];
 
     try {
-      if (!this.browser) {
+      // Initialize browser if not already done
+      if (!this.browserInitialized && !this.browserInitializationFailed) {
         await this.initializeBrowser();
+      }
+
+      if (this.browserInitializationFailed) {
+        errors.push('Puppeteer browser failed to initialize - Chrome/Chromium not available');
+        return { isValid: false, errors };
       }
 
       // Test basic PDF generation
       const testHtml = '<html><body><h1>Test</h1></body></html>';
       await this.generatePdfFromHtml(testHtml);
-      
+
     } catch (error) {
       errors.push(`PDF generation test failed: ${error.message}`);
     }
@@ -230,11 +255,15 @@ export class PdfGeneratorService {
    */
   getStats(): {
     browserConnected: boolean;
+    browserInitialized: boolean;
+    browserInitializationFailed: boolean;
     memoryUsage: string;
     uptime: string;
   } {
     return {
       browserConnected: !!this.browser?.isConnected(),
+      browserInitialized: this.browserInitialized,
+      browserInitializationFailed: this.browserInitializationFailed,
       memoryUsage: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`,
       uptime: `${Math.round(process.uptime())}s`
     };
