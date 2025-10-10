@@ -57,4 +57,8 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   ALLOWED_ORIGINS?: string;
+
+  @IsString()
+  @IsOptional()
+  SCHEDULE_CHECK_CRON?: string = '0 8,20 * * *';
 }

@@ -1,5 +1,5 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Injectable, Logger, NotFoundException, BadRequestException, OnModuleInit } from '@nestjs/common';
+import { Cron, CronExpression, SchedulerRegistry } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../../shared/supabase/supabase.service';
 import { ReportGeneratorService } from './report-generator.service';
@@ -17,7 +17,7 @@ import {
 import { GenerateReportDto } from '../dto/generate-report.dto';
 
 @Injectable()
-export class ScheduledReportsService {
+export class ScheduledReportsService implements OnModuleInit {
   private readonly logger = new Logger(ScheduledReportsService.name);
 
   constructor(
@@ -25,12 +25,19 @@ export class ScheduledReportsService {
     private readonly supabaseService: SupabaseService,
     private readonly reportGenerator: ReportGeneratorService,
     private readonly reportDataService: ReportDataService,
+    private readonly schedulerRegistry: SchedulerRegistry,
   ) {}
 
+  onModuleInit() {
+    const cronExpression = this.configService.get<string>('SCHEDULE_CHECK_CRON', '0 8,20 * * *');
+    this.logger.log(`Scheduled reports will be checked using cron: ${cronExpression}`);
+  }
+
   /**
-   * Cron job to process scheduled reports every 5 minutes
+   * Cron job to process scheduled reports twice daily (8 AM and 8 PM)
+   * Can be configured via SCHEDULE_CHECK_CRON environment variable
    */
-  @Cron('*/5 * * * *') // Every 5 minutes
+  @Cron('0 8,20 * * *') // 8 AM and 8 PM daily
   async processScheduledReports(): Promise<void> {
     try {
       this.logger.debug('Processing scheduled reports...');
